@@ -51,6 +51,24 @@ tr:hover td.freeze-col { background-color: #eef3ff !important; }
         overflow: visible !important; 
     }
 }
+    /* --- TAMBAHAN AGAR MENU TETAP 1 BARIS --- */
+.nav-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important; /* Paksa tetap sejajar, tidak boleh turun */
+    overflow-x: auto !important;  /* Jika layar terlalu sempit, menu bisa digeser kanan-kiri */
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nav-tabs .nav-link {
+    padding: 6px 10px !important; /* Memperkecil padding tombol agar lebih hemat ruang */
+    font-size: 0.9rem !important;  /* Sedikit mengecilkan teks agar pas di layar HP */
+}
+
+/* Menyembunyikan garis scrollbar di bawah menu agar tetap rapi */
+.nav-tabs::-webkit-scrollbar {
+    display: none;
+}
 </style>
 </head>
 <body>
