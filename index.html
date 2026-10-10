@@ -254,11 +254,11 @@ tr.clickable:hover td { filter: brightness(0.92); }
       </div>
       <div class="modal-body">
         <ul class="nav nav-pills nav-fill mb-3 small fw-bold" id="adminTab" role="tablist">
-          <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-lunas">1. Update Pelunasan</button></li>
+          <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-lunas">1. Pelunasan</button></li>
           <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-eis">2. Cek EIS</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-input">3. Input Saldo Awal</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-invoice">4. Atur & Cetak Invoice</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-master">5. Update Master plg3</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-input">3. Saldo Awal</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-invoice">4. Invoice</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-master">5. Update DIL</button></li>
         </ul>
 
         <div class="tab-content">
@@ -300,7 +300,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
             <button class="btn btn-warning btn-sm fw-bold w-100" onclick="prosesCekEis()">⚡ Sinkronisasi Cek EIS Sekarang</button>
           </div>
 
-          <!-- TAB 3: INPUT SALDO AWAL (MENDUKUNG LANGSUNG FILE PDF ASLI MAUPUN XLSX!) -->
+          <!-- TAB 3: INPUT SALDO AWAL -->
           <div class="tab-pane fade" id="pane-input">
             <div class="alert alert-secondary py-2 small">
               <b>Input Data Tagihan / Tunggakan PLN (Mendukung Langsung File <code>.pdf</code> Asli PLN, <code>.xlsx</code>, & <code>.csv</code>):</b><br>
@@ -320,7 +320,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
             </div>
           </div>
 
-          <!-- TAB 4: PENGATURAN INVOICE TGL 15, BATAS TGL L1, BIAYA ADMIN & SORTIR TGL BERANGKAT -->
+          <!-- TAB 4: PENGATURAN INVOICE -->
           <div class="tab-pane fade" id="pane-invoice">
             <div class="d-flex justify-content-between align-items-center alert alert-primary py-2 small mb-2 flex-wrap gap-2">
               <div>
@@ -372,9 +372,9 @@ tr.clickable:hover td { filter: brightness(0.92); }
             </div>
           </div>
 
-          <!-- TAB 5: UPDATE MASTER PELANGGAN (dataplg3) ANTI-GESER & BISA LANGSUNG PDF -->
+          <!-- TAB 5: UPDATE MASTER PELANGGAN -->
           <div class="tab-pane fade" id="pane-master">
-            <!-- BAGIAN A: UPDATE DARI FILE DIL / FILE TEKNIS -->
+            <!-- BAGIAN A: UPDATE DARI FILE DIL -->
             <div class="p-2 border border-primary rounded mb-3 bg-light">
               <h6 class="fw-bold text-primary mb-1">A. Update dari File Excel/CSV DIL (Atau File Teknis Sebagian/Lengkap)</h6>
               <div class="small text-muted mb-2">
@@ -384,7 +384,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
               <button class="btn btn-primary btn-sm fw-bold w-100" onclick="prosesUpdateMasterDil()">🔄 Proses & Update File ke dataplg3</button>
             </div>
 
-            <!-- BAGIAN B: UPDATE FLEKSIBEL + BISA UPLOAD PDF LANGSUNG TANPA CONVERT -->
+            <!-- BAGIAN B: UPDATE FLEKSIBEL -->
             <div class="p-2 border border-success rounded bg-light">
               <h6 class="fw-bold text-success mb-1">B. Update Nama, Alamat, Tarif, Daya, Gardu, Nama Gardu, KWH (Mendukung <code>.PDF</code> & <code>.XLSX</code>)</h6>
               <div class="small text-muted mb-2">
@@ -421,6 +421,25 @@ tr.clickable:hover td { filter: brightness(0.92); }
   </div>
 </div>
 
+<!-- ================= MODAL PREVIEW GAMBAR (UNTUK SCREENSHOT DI HP / APP INVENTOR) ================= -->
+<div class="modal fade" id="previewGambarModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark py-2">
+        <h6 class="modal-title fw-bold">🖼️ Preview Gambar (Siap Screenshot)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center bg-light p-2" style="overflow-x: auto;">
+        <img id="imgPreviewCanvas" src="" class="img-fluid border shadow-sm" alt="Preview Gambar">
+      </div>
+      <div class="modal-footer py-1 d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Tutup</button>
+        <button id="btnDownloadPreview" class="btn btn-success btn-sm fw-bold">📥 Download ke Galeri</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================================
 // 1. KONFIGURASI SUPABASE & PIN RAHASIA (ADMIN & TIM CETAK)
@@ -442,14 +461,12 @@ let daftarMasterPetugas = [];
 let paksaTampilLembar1 = false;
 let isPrinterUnlocked = false;
 
-// Cache memori per tab untuk menghemat bandwidth Supabase
 let sheetCache = {};
 const KOLOM_SELECT = "idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at";
 
 let cacheFileBuffer = { input_awal: null, master_dil: null };
 let cacheFileName = { input_awal: "", master_dil: "" };
 
-// Fungsi Pemendek Gardu/Tiang: Hapus awalan "52405" DAN bersihkan jika ada Nomor HP (08.../628.../***) yang nyasar
 function formatGarduPendek(val) {
   if (!val) return "";
   let s = String(val)
@@ -478,7 +495,7 @@ async function siapkanFileKeMemori(inputEl, key) {
     statusEl.innerHTML = `<span class="text-success">✅ File <b>${file.name}</b> (${(buf.byteLength / 1024 / 1024).toFixed(2)} MB) siap diupload! Silakan klik tombol di bawah.</span>`;
   } catch (err) {
     inputEl.value = "";
-    statusEl.innerHTML = `<span class="text-danger">❌ File <b>${file.name}</b> sedang dikunci oleh Microsoft Excel atau OneDrive!<br>👉 Solusi: <b>Tutup dulu file tersebut di Microsoft Excel</b>, lalu klik <b>Pilih File</b> lagi.</span>`;
+    statusEl.innerHTML = `<span class="text-danger">❌ File <b>${file.name}</b> sedang dikunci oleh Microsoft Excel! Tutup dulu file tersebut, lalu klik Pilih File lagi.</span>`;
   }
 }
 
@@ -565,7 +582,7 @@ function getDayFromTgl(tglStr) {
 }
 
 // ============================================================================
-// PEMINDAI BARIS PINTAR ANTI-GESER (UNTUK PDF & EXCEL HASIL CONVERT PDF)
+// PEMINDAI BARIS PINTAR ANTI-GESER
 // ============================================================================
 const REGEX_TARIF_PLN = /^(R1|R1M|R1MT|R1T|R2|R2T|R3|R3T|B1|B1T|B2|B2T|B3|S1|S2|S2T|S3|I1|I1T|I2|I2T|I3|P1|P1T|P2|P3|P3T|L|C|T)$/i;
 const SET_DAYA_PLN = new Set([250, 450, 900, 1300, 2200, 3500, 4400, 5500, 6600, 7700, 10600, 11000, 13200, 16500, 23000, 33000, 41500, 53000, 66000, 82500, 105000, 131000, 147000, 164000, 197000, 200000, 233000, 240000, 279000, 329000, 345000, 414000, 555000, 690000, 865000, 1110000, 1385000, 1730000]);
@@ -716,7 +733,6 @@ function pindaiSatuBarisAntiGeser(selArray) {
   };
 }
 
-// Fungsi Ekstrak Teks Baris Demi Baris Langsung dari File .PDF Asli PLN
 async function ekstrakBarisDariFilePdf(arrayBuffer, statusEl) {
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const hasil = [];
@@ -861,12 +877,12 @@ backBtn.onclick = () => {
 
 // WARNA REKAP PERSIS SESUAI GAMBAR STANDAR ULP TULUNG
 function getWarnaProgress(persen, sisaLbr) {
-    if (sisaLbr === 0) return { bg: '#002060', text: '#ffffff' }; // Biru Dongker (Nihil / Selesai 0 Lembar)
-    if (persen >= 100) return { bg: '#00b0f0', text: '#000000' }; // Biru Muda / Cyan (>= 100%)
-    if (persen >= 91)  return { bg: '#92d050', text: '#000000' }; // Hijau Apel (91% - 99%)
-    if (persen >= 61)  return { bg: '#ffff00', text: '#000000' }; // Kuning Terang (61% - 90%)
-    if (persen >= 21)  return { bg: '#ff0000', text: '#ffffff' }; // Merah Terang (21% - 60%)
-    return { bg: '#000000', text: '#ffffff' };                    // Hitam Pekat (0% - 20%)
+    if (sisaLbr === 0) return { bg: '#002060', text: '#ffffff' }; 
+    if (persen >= 100) return { bg: '#00b0f0', text: '#000000' }; 
+    if (persen >= 91)  return { bg: '#92d050', text: '#000000' }; 
+    if (persen >= 61)  return { bg: '#ffff00', text: '#000000' }; 
+    if (persen >= 21)  return { bg: '#ff0000', text: '#ffffff' }; 
+    return { bg: '#000000', text: '#ffffff' };                    
 }
 
 function hitungTargetLembar(sisaSaldoLembar, startDay, targetEndDay) {
@@ -877,7 +893,7 @@ function hitungTargetLembar(sisaSaldoLembar, startDay, targetEndDay) {
     return Math.ceil(sisaSaldoLembar / (targetEndDay - tglSekarang + 1));
 }
 
-// FUNGSI KARTU RINGKASAN DINAMIS (SEMUA PETUGAS ATAU KHUSUS 1 PETUGAS)
+// FUNGSI KARTU RINGKASAN DINAMIS
 function updateSummaryCards(kodePetugas = "Semua") {
   const sekarang = new Date();
   const tglTerakhirBulanIni = new Date(sekarang.getFullYear(), sekarang.getMonth() + 1, 0).getDate();
@@ -1278,7 +1294,7 @@ async function prosesCekEis() {
   }
 }
 
-// FUNGSI INPUT SALDO AWAL: DUKUNG LANGSUNG FILE .PDF ASLI PLN, .XLSX, CSV, & KOREKSI ANTI-GESER
+// FUNGSI INPUT SALDO AWAL
 async function prosesInputDataAwal() {
   const fileEl = document.getElementById("fileInputPln");
   const textVal = document.getElementById("textCopasPln").value.trim();
@@ -1532,7 +1548,7 @@ async function prosesInputDataAwal() {
 }
 
 // ============================================================================
-// FUNGSI EKSTRAKSI BARIS EXCEL FLEKSIBEL (KEBAL SPASI: NOMORGARDU & NAMAGARDU + TOLAK NO HP BERBINTANG)
+// FUNGSI EKSTRAKSI BARIS EXCEL FLEKSIBEL
 // ============================================================================
 function ekstrakBarisMasterFleksibel(rows) {
   let headerRowIdx = -1;
@@ -1549,7 +1565,6 @@ function ekstrakBarisMasterFleksibel(rows) {
   let isLaporanTagihanPdf = false;
 
   if (headerRowIdx !== -1) {
-    // Normalisasi seluruh judul kolom: hapus spasi, titik, strip, underscore agar "NOMORGARDU" = "NOMOR GARDU"
     const headersClean = rows[headerRowIdx].map(h => String(h || "").toUpperCase().replace(/[^A-Z0-9]/g, ""));
     
     if (headersClean.includes("RBM") || headersClean.includes("SUBKOGOL") || headersClean.includes("KOGOL") || headersClean.includes("UNITAP")) {
@@ -1633,7 +1648,7 @@ function ekstrakBarisMasterFleksibel(rows) {
       if (/^(08|628|\+62)/.test(namaGarduRaw) || namaGarduRaw.includes("*")) {
         namaGarduRaw = "";
       }
-      // Jangan masukkan NO HP jika mengandung bintang (*)
+      // Tolak No HP jika isinya hanya bintang (*)
       if (hpRaw.includes("*")) {
         hpRaw = "";
       }
@@ -1717,7 +1732,6 @@ async function prosesUpdateMasterDil() {
   }
 }
 
-// FUNGSI PINTAR UPDATE FLEKSIBEL (MENDUKUNG FILE .PDF LANGSUNG, .XLSX ANTI-GESER, ATAU COPAS)
 async function prosesUpdateMasterPb() {
   const fileEl = document.getElementById("fileMasterPb");
   const textVal = document.getElementById("textCopasPb").value.trim();
@@ -1928,7 +1942,7 @@ async function ubahOpsiInvoicePetugas(kode) {
   }
 }
 
-// FUNGSI TOMBOL INVOICE BULAN LALU (KIRIM BERTAHAP PER 500 BARIS + BACA SPASI/TAB OTOMATIS)
+// FUNGSI TOMBOL INVOICE BULAN LALU
 async function prosesTambahInvoiceManual() {
   const rawIdpels = document.getElementById("textIdpelInvoiceManual").value.trim();
   const rawTgls = document.getElementById("textTglLunasInvoiceLalu").value.trim();
@@ -1979,7 +1993,7 @@ async function prosesTambahInvoiceManual() {
     }
 
     delete sheetCache['invoice'];
-    statusEl.innerHTML = `<span class="text-success">✅ Berhasil! Dari ${listIdpel.length.toLocaleString("id-ID")} IDPEL Invoice Bulan Lalu, sebanyak <b>${totalMasuk.toLocaleString("id-ID")} pelanggan</b> masuk ke Invoice bulan ini (sisanya otomatis disembunyikan karena bulan lalu lunas sebelum Tgl Berangkat).</span>`;
+    statusEl.innerHTML = `<span class="text-success">✅ Berhasil! Dari ${listIdpel.length.toLocaleString("id-ID")} IDPEL Invoice Bulan Lalu, sebanyak <b>${totalMasuk.toLocaleString("id-ID")} pelanggan</b> masuk ke Invoice bulan ini.</span>`;
     document.getElementById("textIdpelInvoiceManual").value = "";
     document.getElementById("textTglLunasInvoiceLalu").value = "";
     if (currentSheet === 'invoice') loadSheet('invoice', true);
@@ -2629,20 +2643,41 @@ function drawTable(data) {
   document.getElementById("tableArea").innerHTML = h + `</tbody></table></div>`;
 }
 
-// TAMPILAN KARTU PELANGGAN BERSIH: HANYA IDPEL | TARIF/DAYA | ALAMAT (TANPA GARDU & NO KWH)
+// ============================================================================
+// FUNGSI COPY TEKS WA OTOMATIS (UNTUK MENGAKALI WEBVIEW APP INVENTOR)
+// ============================================================================
+function copyTextWA(btn, text) {
+  try {
+    const decoded = decodeURIComponent(text);
+    const el = document.createElement('textarea');
+    el.value = decoded;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    const ori = btn.innerHTML;
+    btn.innerHTML = "✅ Teks Tersalin!";
+    setTimeout(() => btn.innerHTML = ori, 2000);
+  } catch (e) {
+    console.error("Gagal menyalin WA", e);
+  }
+}
+
+// TAMPILAN KARTU PELANGGAN
 function showCardsByData(id) {
   pushView(renderDetail);
   updateSummaryCards(currentPetugas || "Semua");
 
   let h = "";
   currentDetail.forEach(r => {
+    // Tombol WA sekarang memanggil copyTextWA untuk berjaga-jaga jika link wa.me diblokir App Inventor
     h += `<div class="card mb-2 ${r.idpel === id?'highlight':''}" id="card-${r.idpel}"><div class="card-body p-2">
       <div class="d-flex justify-content-between"><b class="fs-6">${r.nama}</b> <span class="badge bg-secondary">${r.koked}</span></div>
       <p class="text-muted mb-1">${r.idpel} | ${r.tarif}/${r.daya} | ${r.alamat || '-'}</p>
       <div class="d-flex justify-content-between align-items-center mt-2">
         <b class="text-danger fs-6">Rp. ${parseIDR(r.jumlah).toLocaleString("id-ID")}</b>
         <div class="d-flex gap-1">
-          <a class="btn btn-success btn-sm fw-bold" target="_blank" href="https://wa.me/?text=${getFullText(r, 'WA')}">📤 WA</a>
+          <a class="btn btn-success btn-sm fw-bold" target="_blank" href="https://wa.me/?text=${getFullText(r, 'WA')}" onclick="copyTextWA(this, '${getFullText(r, 'WA').replace(/'/g, "\\'")}')">📤 WA</a>
           <button class="btn btn-danger btn-sm fw-bold" onclick='createPDF(${JSON.stringify(r).replace(/'/g, "&#39;")})'>📄 PDF</button>
           <button class="btn btn-warning btn-sm text-dark fw-bold" onclick='createImage(${JSON.stringify(r).replace(/'/g, "&#39;")})'>🖼️ Gambar</button>
         </div>
@@ -2840,7 +2875,6 @@ function createPDF(r) {
   }
 }
 
-// FUNGSI CETAK GAMBAR/PDF SATUAN INVOICE (DISAMAKAN DENGAN FORMAT BARU)
 function generateCanvasInvoice(r) {
   const adminRp = getBiayaAdminPetugas(r.kode);
   const totalTagihan = parseIDR(r.jumlah) + adminRp;
@@ -2924,13 +2958,27 @@ function generateCanvasInvoice(r) {
   return canvas;
 }
 
+// ============================================================================
+// FUNGSI TAMPILKAN GAMBAR KE MODAL POP-UP UNTUK SCREENSHOT APP INVENTOR
+// ============================================================================
 function createImage(r) {
   const canvas = currentSheet === 'invoice' ? generateCanvasInvoice(r) : generateCanvasTunggakan(r);
   const prefix = currentSheet === 'invoice' ? 'Invoice_' : 'Tunggakan_';
-  const link = document.createElement('a');
-  link.download = `${prefix}${r.idpel}.jpg`;
-  link.href = canvas.toDataURL('image/jpeg', 1.0);
-  link.click();
+  const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
+  
+  // Tampilkan ke Modal (Bisa di-screenshot)
+  document.getElementById('imgPreviewCanvas').src = dataUrl;
+  const modalPreview = new bootstrap.Modal(document.getElementById('previewGambarModal'));
+  modalPreview.show();
+
+  // Atur link download untuk user Komputer / Browser (tetap berfungsi)
+  const btnDownload = document.getElementById('btnDownloadPreview');
+  btnDownload.onclick = () => {
+    const link = document.createElement('a');
+    link.download = `${prefix}${r.idpel}.jpg`;
+    link.href = dataUrl;
+    link.click();
+  };
 }
 
 loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
