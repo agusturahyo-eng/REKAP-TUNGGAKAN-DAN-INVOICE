@@ -421,7 +421,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
   </div>
 </div>
 
-<!-- ================= MODAL PREVIEW GAMBAR (UNTUK SCREENSHOT) ================= -->
+<!-- ================= MODAL PREVIEW GAMBAR (UNTUK SCREENSHOT DI APLIKASI KODULAR) ================= -->
 <div class="modal fade" id="previewGambarModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
@@ -2278,6 +2278,8 @@ async function terapkanPerubahanOpsiDariModalCetak() {
 }
 
 async function eksekusiCetakF4() {
+  if (window.AppInventor) { alert("Trik Aplikasi: Fitur Cetak F4 ini akan mendownload file, sehingga hanya bisa digunakan lewat Web Browser (Chrome/Safari) di HP atau Laptop."); return; }
+  
   const mode = document.querySelector('input[name="radioModeCetak"]:checked').value;
   const kode = document.getElementById("selectPetugasCetakF4").value;
   const opsiAdmin = document.getElementById("selectOpsiAdmin").value;
@@ -2596,12 +2598,14 @@ function openGlobal() {
 }
 
 function exportExcel() {
+  if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
   const ws = XLSX.utils.json_to_sheet(currentDetail), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Data");
   XLSX.writeFile(wb, `Rekap_${currentTitle}.xlsx`);
 }
 
 function exportSemuaExcel(k) {
+  if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
   const dataToExport = k === "Semua" ? allData : allData.filter(r => r.kode === k);
   const ws = XLSX.utils.json_to_sheet(dataToExport);
   const wb = XLSX.utils.book_new();
@@ -2796,6 +2800,11 @@ function generateCanvasTunggakan(r) {
 }
 
 function createPDF(r) {
+  if (window.AppInventor) { 
+    alert("Trik Aplikasi: Fitur PDF hanya bisa didownload lewat Web Browser (Chrome). Silakan gunakan tombol Gambar lalu Screenshot!"); 
+    return; 
+  }
+
   const garduBersih = formatGarduPendek(r.gardu);
   if (currentSheet === 'invoice') {
     const canvas = generateCanvasInvoice(r);
@@ -2940,27 +2949,36 @@ function generateCanvasInvoice(r) {
   return canvas;
 }
 
-// FUNGSI BARU: MEMUNCULKAN GAMBAR DI POP-UP AGAR BISA DI-SCREENSHOT
+// FUNGSI PINTAR: DETEKSI APLIKASI VS WEB UNTUK GAMBAR
 function createImage(r) {
   const canvas = currentSheet === 'invoice' ? generateCanvasInvoice(r) : generateCanvasTunggakan(r);
-  const imgData = canvas.toDataURL('image/jpeg', 1.0);
   
-  // Masukkan gambar ke dalam modal dan tampilkan di layar
-  document.getElementById('imgPreview').src = imgData;
-  const modalEl = new bootstrap.Modal(document.getElementById('previewGambarModal'));
-  modalEl.show();
+  if (window.AppInventor) {
+    // JIKA DI APLIKASI KODULAR: Munculkan pop-up agar bisa di-screenshot
+    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+    document.getElementById('imgPreview').src = imgData;
+    const modalEl = new bootstrap.Modal(document.getElementById('previewGambarModal'));
+    modalEl.show();
+  } else {
+    // JIKA DI WEB BIASA: Langsung download gambar secara otomatis
+    const prefix = currentSheet === 'invoice' ? 'Invoice_' : 'Tunggakan_';
+    const link = document.createElement('a');
+    link.download = `${prefix}${r.idpel}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 1.0);
+    link.click();
+  }
 }
 
 loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
 </script>
 
-<!-- KODE JEMBATAN KODULAR UNTUK WHATSAPP -->
+<!-- KODE JEMBATAN KODULAR UNTUK WHATSAPP (SMART DETECT) -->
 <script>
 document.addEventListener('click', function(e) {
     var a = e.target.closest('a');
     if (a && (a.href.includes('whatsapp') || a.href.includes('wa.me'))) {
-        e.preventDefault(); 
         if (window.AppInventor) {
+            e.preventDefault(); 
             window.AppInventor.setWebViewString(a.href); 
         }
     }
