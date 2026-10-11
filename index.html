@@ -421,6 +421,22 @@ tr.clickable:hover td { filter: brightness(0.92); }
   </div>
 </div>
 
+<!-- ================= MODAL PREVIEW GAMBAR (UNTUK SCREENSHOT) ================= -->
+<div class="modal fade" id="previewGambarModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark py-2">
+        <h6 class="modal-title fw-bold">📸 Preview Gambar (Silakan Screenshot)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-1 bg-light">
+        <img id="imgPreview" src="" class="img-fluid border shadow-sm" alt="Preview Gambar">
+        <div class="mt-2 text-dark small fw-bold">💡 Tips: Gunakan fitur Screenshot di HP Anda untuk menyimpan & membagikan gambar ini.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================================
 // 1. KONFIGURASI SUPABASE & PIN RAHASIA (ADMIN & TIM CETAK)
@@ -2924,17 +2940,18 @@ function generateCanvasInvoice(r) {
   return canvas;
 }
 
+// FUNGSI BARU: MEMUNCULKAN GAMBAR DI POP-UP AGAR BISA DI-SCREENSHOT
 function createImage(r) {
   const canvas = currentSheet === 'invoice' ? generateCanvasInvoice(r) : generateCanvasTunggakan(r);
-  const prefix = currentSheet === 'invoice' ? 'Invoice_' : 'Tunggakan_';
-  const link = document.createElement('a');
-  link.download = `${prefix}${r.idpel}.jpg`;
-  link.href = canvas.toDataURL('image/jpeg', 1.0);
-  link.click();
+  const imgData = canvas.toDataURL('image/jpeg', 1.0);
+  
+  // Masukkan gambar ke dalam modal dan tampilkan di layar
+  document.getElementById('imgPreview').src = imgData;
+  const modalEl = new bootstrap.Modal(document.getElementById('previewGambarModal'));
+  modalEl.show();
 }
 
 loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
-// === AKHIR DARI SCRIPT LENGKAP (100% UTUH) ===
 </script>
 
 <!-- KODE JEMBATAN KODULAR UNTUK WHATSAPP -->
@@ -2942,8 +2959,10 @@ loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
 document.addEventListener('click', function(e) {
     var a = e.target.closest('a');
     if (a && (a.href.includes('whatsapp') || a.href.includes('wa.me'))) {
-        e.preventDefault(); // Mencegah web membuka tab baru yang bikin error
-        window.AppInventor.setWebViewString(a.href); // Mengirim sinyal link WA ke Kodular
+        e.preventDefault(); 
+        if (window.AppInventor) {
+            window.AppInventor.setWebViewString(a.href); 
+        }
     }
 });
 </script>
