@@ -2936,5 +2936,17 @@ function createImage(r) {
 loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
 // === AKHIR DARI SCRIPT LENGKAP (100% UTUH) ===
 </script>
+
+<!-- KODE JEMBATAN KODULAR UNTUK WHATSAPP -->
+<script>
+document.addEventListener('click', function(e) {
+    var a = e.target.closest('a');
+    if (a && (a.href.includes('whatsapp') || a.href.includes('wa.me'))) {
+        e.preventDefault(); // Mencegah web membuka tab baru yang bikin error
+        window.AppInventor.setWebViewString(a.href); // Mengirim sinyal link WA ke Kodular
+    }
+});
+</script>
+
 </body>
 </html>
