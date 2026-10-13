@@ -283,6 +283,13 @@ tr.clickable:hover td { filter: brightness(0.92); }
             </div>
             <textarea id="textIdpelLunas" class="form-control form-control-sm mb-2" rows="4" placeholder="Paste daftar IDPEL yang lunas di sini..."></textarea>
             <button class="btn btn-success btn-sm fw-bold w-100" onclick="prosesPelunasanHarian()">✅ Proses Copy-Paste Manual</button>
+
+            <hr class="my-2">
+            <div class="p-2 border border-danger rounded bg-white">
+              <label class="form-label small fw-bold text-danger mb-1">⚠️ Batalkan Pelunasan (Jika Salah Update):</label>
+              <textarea id="textIdpelBatalLunas" class="form-control form-control-sm mb-2" rows="2" placeholder="Paste IDPEL yang salah update (akan dikembalikan jadi BELUM LUNAS)..."></textarea>
+              <button class="btn btn-danger btn-sm fw-bold w-100" onclick="prosesBatalLunas()">❌ Batalkan Status Lunas IDPEL di Atas</button>
+            </div>
           </div>
 
           <!-- TAB 2: CEK EIS -->
@@ -1269,6 +1276,32 @@ async function prosesPelunasanHarian() {
     statusEl.innerHTML = `<span class="text-success">✅ Berhasil! ${data} pelanggan ditandai LUNAS pada tanggal ${tgl}.</span>`;
     document.getElementById("textIdpelLunas").value = "";
     loadSheet(currentSheet, true);
+  }
+}
+
+async function prosesBatalLunas() {
+  const idpels = ekstrakDaftarIdpel(document.getElementById("textIdpelBatalLunas").value);
+  const statusEl = document.getElementById("statusProsesModal");
+
+  if (idpels.length === 0) {
+    statusEl.innerHTML = `<span class="text-danger">⚠️ Paste minimal 1 IDPEL yang ingin dibatalkan pelunasannya!</span>`;
+    return;
+  }
+
+  statusEl.innerHTML = `<span class="text-primary">⏳ Membatalkan pelunasan ${idpels.length} pelanggan...</span>`;
+  
+  try {
+    const { error } = await db.from('data_tunggakan')
+                              .update({ tgl_lunas: null }) 
+                              .in('idpel', idpels);
+    if (error) throw error;
+
+    statusEl.innerHTML = `<span class="text-success">✅ Berhasil! ${idpels.length} pelanggan telah dikembalikan statusnya menjadi BELUM LUNAS.</span>`;
+    document.getElementById("textIdpelBatalLunas").value = "";
+    
+    loadSheet(currentSheet, true); 
+  } catch (err) {
+    statusEl.innerHTML = `<span class="text-danger">❌ Gagal membatalkan: ${err.message}</span>`;
   }
 }
 
