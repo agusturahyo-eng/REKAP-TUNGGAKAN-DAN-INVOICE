@@ -84,7 +84,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
 <body>
 <div class="container-fluid my-3">
 
-  <!-- BARIS MENU ATAS & TOMBOL ADMIN/CETAK (TERSEMBUNYI SECARA DEFAULT) -->
+  <!-- BARIS MENU ATAS & TOMBOL ADMIN/CETAK/DOWNLOAD -->
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <ul class="nav nav-tabs border-0 mb-0">
       <li class="nav-item"><a class="nav-link active" id="tab-lembar1" onclick="paksaTampilLembar1=false; loadSheet('lembar1')">Lembar 1</a></li>
@@ -93,6 +93,10 @@ tr.clickable:hover td { filter: brightness(0.92); }
       <li class="nav-item"><a class="nav-link" id="tab-invoice" onclick="loadSheet('invoice')">Invoice</a></li>
     </ul>
     <div class="d-flex gap-2">
+      <!-- Tombol Baru Download Khusus (Selalu Muncul) -->
+      <button class="btn btn-info btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#downloadKhususModal">
+        📥 Filter & Download
+      </button>
       <button id="btnCetakF4Utama" class="btn btn-success btn-sm fw-bold shadow-sm d-none" onclick="bukaModalCetakF4('Semua')">
         🖨️ Cetak Invoice F4 (4/Lembar) & Biaya Admin
       </button>
@@ -115,6 +119,56 @@ tr.clickable:hover td { filter: brightness(0.92); }
 
   <button id="backBtn" class="btn btn-secondary btn-sm mb-2 d-none fw-bold">⬅ Kembali</button>
   <div id="view"></div>
+</div>
+
+<!-- ================= MODAL DOWNLOAD DATA KHUSUS (PRABAYAR/PASCABAYAR) ================= -->
+<div class="modal fade" id="downloadKhususModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-dark py-2">
+        <h6 class="modal-title fw-bold">📥 Filter & Download Data (Excel)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+        <div class="alert alert-secondary py-2 mb-3">
+          Download data spesifik dari tab yang sedang Anda buka saat ini (Tab <b><span id="labelTabDownload"></span></b>).
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold mb-1">1. Pilih Jenis Layanan:</label>
+          <select id="dlJenisLayanan" class="form-select form-select-sm border-info fw-bold text-dark">
+            <option value="semua">Semua Layanan (Prabayar & Pascabayar)</option>
+            <option value="pasca">Hanya Pascabayar (Tarif tanpa akhiran 'T')</option>
+            <option value="pra">Hanya Prabayar (Tarif berakhiran 'T')</option>
+          </select>
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-bold mb-1">2. Filter Tarif (Opsional):</label>
+            <input type="text" id="dlTarif" class="form-control form-control-sm text-uppercase" placeholder="Cth: R1, B1, R1T">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-bold mb-1">3. Filter Daya (Opsional):</label>
+            <input type="number" id="dlDaya" class="form-control form-control-sm" placeholder="Cth: 450, 900">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold mb-1">4. Status Lunas:</label>
+          <select id="dlStatusLunas" class="form-select form-select-sm">
+            <option value="semua">Semua Status (Lunas & Belum Lunas)</option>
+            <option value="belum">Hanya BELUM LUNAS Saja</option>
+            <option value="lunas">Hanya LUNAS Saja</option>
+          </select>
+        </div>
+
+        <button class="btn btn-info fw-bold w-100 py-2 shadow-sm" onclick="eksekusiDownloadKhusus()">
+          📥 Download Excel Data Filter
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ================= MODAL CETAK MASSAL / SUSULAN INVOICE F4 ================= -->
@@ -807,7 +861,6 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
   const step = 1000;
   
   while (true) {
-    // KODE YANG DIUBAH: Mengurutkan database berdasarkan KOKED (Rute), baru IDPEL
     let query = db.from('data_tunggakan')
                   .select(KOLOM_SELECT)
                   .order('koked', { ascending: true })
@@ -852,6 +905,9 @@ async function loadSheet(k, forceRefresh = false) {
   const tabEl = document.getElementById("tab-" + k);
   if (tabEl) tabEl.classList.add("active");
   backBtn.classList.add("d-none");
+
+  // Update label di modal download
+  document.getElementById("labelTabDownload").innerText = (k === 'lembar1' ? 'Lembar 1' : k === 'lembar2' ? 'Lembar 2' : k === 'lembar3' ? 'Lembar 3' : 'Invoice');
 
   const btnCetakUtama = document.getElementById("btnCetakF4Utama");
   if (k === 'invoice' && isPrinterUnlocked) btnCetakUtama.classList.remove("d-none");
@@ -2664,6 +2720,66 @@ function exportSemuaExcel(k) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Semua Data");
   XLSX.writeFile(wb, `Rekap_Semua_${k}.xlsx`);
+}
+
+// ============================================================================
+// FUNGSI DOWNLOAD DATA KHUSUS (PRABAYAR / PASCABAYAR / FILTER TARIF/DAYA)
+// ============================================================================
+function eksekusiDownloadKhusus() {
+  if (window.AppInventor) { 
+    alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) di HP atau Laptop."); 
+    return; 
+  }
+  
+  const jenisLayanan = document.getElementById("dlJenisLayanan").value;
+  const fTarif = document.getElementById("dlTarif").value.trim().toUpperCase();
+  const fDaya = document.getElementById("dlDaya").value.trim();
+  const fStatus = document.getElementById("dlStatusLunas").value;
+  
+  let filteredData = allData.filter(r => {
+    let trf = String(r.tarif || "").toUpperCase().trim();
+    let isPra = trf.endsWith("T"); // Jika berakhiran 'T', berarti Prabayar
+    
+    // 1. Filter Layanan (Prabayar/Pascabayar)
+    if (jenisLayanan === "pasca" && isPra) return false;
+    if (jenisLayanan === "pra" && !isPra) return false;
+    
+    // 2. Filter Tarif Spesifik (Opsional)
+    if (fTarif !== "" && trf !== fTarif) return false;
+    
+    // 3. Filter Daya Spesifik (Opsional)
+    if (fDaya !== "" && String(r.daya) !== fDaya) return false;
+    
+    // 4. Filter Status Lunas
+    let st = getStatusLunas(r);
+    if (fStatus === "belum" && st.isLunas) return false;
+    if (fStatus === "lunas" && !st.isLunas) return false;
+    
+    return true; // Lolos semua filter
+  });
+  
+  if (filteredData.length === 0) {
+    alert("⚠️ Tidak ada data yang cocok dengan kriteria filter tersebut!");
+    return;
+  }
+  
+  const ws = XLSX.utils.json_to_sheet(filteredData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Data Khusus");
+  
+  let namaFile = `Data_${currentSheet}`;
+  if (jenisLayanan === "pra") namaFile += "_Prabayar";
+  if (jenisLayanan === "pasca") namaFile += "_Pascabayar";
+  if (fTarif) namaFile += `_Tarif-${fTarif}`;
+  if (fDaya) namaFile += `_Daya-${fDaya}`;
+  if (fStatus !== "semua") namaFile += `_${fStatus.toUpperCase()}`;
+  
+  XLSX.writeFile(wb, `${namaFile}.xlsx`);
+  
+  // Tutup Modal setelah mendownload
+  const modalEl = document.getElementById('downloadKhususModal');
+  const modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
 }
 
 function detailLunas(t) { currentTitle = `Lunas_${t}`; currentDetail = allData.filter(r => r.kode === currentPetugas && getStatusLunas(r).isLunas && getStatusLunas(r).tgl === t); pushView(()=>openPetugas(currentPetugas)); renderDetail(); }
