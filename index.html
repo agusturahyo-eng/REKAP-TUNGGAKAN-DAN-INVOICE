@@ -93,8 +93,8 @@ tr.clickable:hover td { filter: brightness(0.92); }
       <li class="nav-item"><a class="nav-link" id="tab-invoice" onclick="loadSheet('invoice')">Invoice</a></li>
     </ul>
     <div class="d-flex gap-2">
-      <!-- Tombol Baru Download Khusus (Selalu Muncul) -->
-      <button class="btn btn-info btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#downloadKhususModal">
+      <!-- Tombol Baru Download Khusus (DIKUNCI D-NONE, KHUSUS 123123) -->
+      <button id="btnDownloadKhusus" class="btn btn-info btn-sm fw-bold shadow-sm d-none" data-bs-toggle="modal" data-bs-target="#downloadKhususModal" onclick="siapkanMenuDownload()">
         📥 Filter & Download
       </button>
       <button id="btnCetakF4Utama" class="btn btn-success btn-sm fw-bold shadow-sm d-none" onclick="bukaModalCetakF4('Semua')">
@@ -121,7 +121,23 @@ tr.clickable:hover td { filter: brightness(0.92); }
   <div id="view"></div>
 </div>
 
-<!-- ================= MODAL DOWNLOAD DATA KHUSUS (PRABAYAR/PASCABAYAR) ================= -->
+<!-- ================= MODAL LOGIN PIN RAHASIA (TAMPILAN PASSWORD) ================= -->
+<div class="modal fade" id="pinModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white py-2">
+        <h6 class="modal-title fw-bold">🔒 Masukkan PIN Akses</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center bg-light">
+        <input type="password" id="inputPasswordPin" class="form-control text-center fs-3 fw-bold mb-3 border-dark shadow-sm" placeholder="••••••••" style="letter-spacing: 3px;" onkeyup="if(event.key==='Enter') cekPinLogin()">
+        <button class="btn btn-primary fw-bold w-100 py-2 shadow-sm" onclick="cekPinLogin()">Buka Kunci Akses</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL DOWNLOAD DATA KHUSUS (PRABAYAR/PASCABAYAR/MASTER) ================= -->
 <div class="modal fade" id="downloadKhususModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -130,13 +146,17 @@ tr.clickable:hover td { filter: brightness(0.92); }
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body small">
-        <div class="alert alert-secondary py-2 mb-3">
-          Download data spesifik dari tab yang sedang Anda buka saat ini (Tab <b><span id="labelTabDownload"></span></b>).
+        <div class="mb-3 p-2 border border-info rounded bg-light">
+          <label class="form-label fw-bold text-primary mb-1">0. Pilih Sumber Data Excel:</label>
+          <select id="dlSumberData" class="form-select form-select-sm fw-bold border-primary" onchange="toggleFilterDownload()">
+            <option value="tunggakan">Data Tunggakan (Sesuai Tab Saat Ini)</option>
+            <option value="master">Seluruh MASTER PELANGGAN (dataplg3)</option>
+          </select>
         </div>
 
         <div class="mb-3">
           <label class="form-label fw-bold mb-1">1. Pilih Jenis Layanan:</label>
-          <select id="dlJenisLayanan" class="form-select form-select-sm border-info fw-bold text-dark">
+          <select id="dlJenisLayanan" class="form-select form-select-sm fw-bold text-dark">
             <option value="semua">Semua Layanan (Prabayar & Pascabayar)</option>
             <option value="pasca">Hanya Pascabayar (Tarif tanpa akhiran 'T')</option>
             <option value="pra">Hanya Prabayar (Tarif berakhiran 'T')</option>
@@ -154,8 +174,8 @@ tr.clickable:hover td { filter: brightness(0.92); }
           </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold mb-1">4. Status Lunas:</label>
+        <div class="mb-3" id="boxStatusLunas">
+          <label class="form-label fw-bold mb-1">4. Status Lunas (Khusus Tunggakan):</label>
           <select id="dlStatusLunas" class="form-select form-select-sm">
             <option value="semua">Semua Status (Lunas & Belum Lunas)</option>
             <option value="belum">Hanya BELUM LUNAS Saja</option>
@@ -163,7 +183,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
           </select>
         </div>
 
-        <button class="btn btn-info fw-bold w-100 py-2 shadow-sm" onclick="eksekusiDownloadKhusus()">
+        <button id="btnAksiDownload" class="btn btn-info fw-bold w-100 py-2 shadow-sm" onclick="eksekusiDownloadKhusus()">
           📥 Download Excel Data Filter
         </button>
       </div>
@@ -504,7 +524,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
 // ============================================================================
 const SUPABASE_URL = "https://wnzedfyiublmzmjkzsrq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_g1WlECVLkTdNBMwL2QxWlA_gOu6l4VR";
-const PIN_SUPER_ADMIN = "123123";  // SUPER ADMIN: Bisa upload Master & Tunggakan
+const PIN_SUPER_ADMIN = "123123";  // SUPER ADMIN: Bisa upload Master & Tunggakan & Download
 const PIN_ADMIN = "123456789";     // ADMIN HARIAN: Hanya atur Invoice & Pelunasan
 const PIN_CETAK = "12345";         // PETUGAS PRINT: Hanya tombol Cetak F4
 
@@ -574,6 +594,7 @@ function setBiayaAdminPetugas(kode, nominal) {
 let hitungKlikJudul = 0;
 let timerKlikJudul = null;
 
+// ================= FUNGSI BUKA MENU RAHASIA DENGAN MODAL PASSWORD =================
 function bukaPintuRahasia() {
   hitungKlikJudul++;
   clearTimeout(timerKlikJudul);
@@ -581,33 +602,44 @@ function bukaPintuRahasia() {
 
   if (hitungKlikJudul >= 5) {
     hitungKlikJudul = 0;
-    const inputPin = prompt("🔒 Masukkan PIN Akses:");
-    
-    if (inputPin === PIN_SUPER_ADMIN || inputPin === PIN_ADMIN) {
-      isPrinterUnlocked = true;
-      document.getElementById("btnAdmin").classList.remove("d-none");
-      if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
-      
-      // SISTEM KEAMANAN: Sembunyikan tab berbahaya jika pakai PIN Admin Harian
-      if (inputPin === PIN_ADMIN) {
-        document.getElementById("navTabInputAwal").classList.add("d-none");
-        document.getElementById("navTabMaster").classList.add("d-none");
-      } else {
-        document.getElementById("navTabInputAwal").classList.remove("d-none");
-        document.getElementById("navTabMaster").classList.remove("d-none");
-      }
+    document.getElementById("inputPasswordPin").value = "";
+    const modalEl = new bootstrap.Modal(document.getElementById('pinModal'));
+    modalEl.show();
+    setTimeout(() => document.getElementById("inputPasswordPin").focus(), 500);
+  }
+}
 
-      muatDaftarPetugasModal();
-      const modalEl = new bootstrap.Modal(document.getElementById('adminModal'));
-      modalEl.show();
-      
-    } else if (inputPin === PIN_CETAK) {
-      isPrinterUnlocked = true;
-      if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
-      bukaModalCetakF4(currentPetugas || 'Semua');
-    } else if (inputPin !== null) {
-      alert("❌ PIN salah!");
+function cekPinLogin() {
+  const inputPin = document.getElementById("inputPasswordPin").value;
+  const modalEl = bootstrap.Modal.getInstance(document.getElementById('pinModal'));
+  if (modalEl) modalEl.hide();
+
+  if (inputPin === PIN_SUPER_ADMIN || inputPin === PIN_ADMIN) {
+    isPrinterUnlocked = true;
+    document.getElementById("btnAdmin").classList.remove("d-none");
+    if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
+    
+    // SISTEM KEAMANAN: Cek apakah SUPER ADMIN atau ADMIN HARIAN
+    if (inputPin === PIN_ADMIN) {
+      document.getElementById("navTabInputAwal").classList.add("d-none");
+      document.getElementById("navTabMaster").classList.add("d-none");
+      document.getElementById("btnDownloadKhusus").classList.add("d-none"); // Kunci Download
+    } else {
+      document.getElementById("navTabInputAwal").classList.remove("d-none");
+      document.getElementById("navTabMaster").classList.remove("d-none");
+      document.getElementById("btnDownloadKhusus").classList.remove("d-none"); // Buka Download Khusus 123123
     }
+
+    muatDaftarPetugasModal();
+    const adminModalEl = new bootstrap.Modal(document.getElementById('adminModal'));
+    adminModalEl.show();
+    
+  } else if (inputPin === PIN_CETAK) {
+    isPrinterUnlocked = true;
+    if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
+    bukaModalCetakF4(currentPetugas || 'Semua');
+  } else if (inputPin !== "") {
+    alert("❌ PIN salah!");
   }
 }
 
@@ -905,9 +937,6 @@ async function loadSheet(k, forceRefresh = false) {
   const tabEl = document.getElementById("tab-" + k);
   if (tabEl) tabEl.classList.add("active");
   backBtn.classList.add("d-none");
-
-  // Update label di modal download
-  document.getElementById("labelTabDownload").innerText = (k === 'lembar1' ? 'Lembar 1' : k === 'lembar2' ? 'Lembar 2' : k === 'lembar3' ? 'Lembar 3' : 'Invoice');
 
   const btnCetakUtama = document.getElementById("btnCetakF4Utama");
   if (k === 'invoice' && isPrinterUnlocked) btnCetakUtama.classList.remove("d-none");
@@ -2723,60 +2752,120 @@ function exportSemuaExcel(k) {
 }
 
 // ============================================================================
-// FUNGSI DOWNLOAD DATA KHUSUS (PRABAYAR / PASCABAYAR / FILTER TARIF/DAYA)
+// FUNGSI DOWNLOAD DATA KHUSUS (PRABAYAR / PASCABAYAR / MASTER PELANGGAN)
 // ============================================================================
-function eksekusiDownloadKhusus() {
+function siapkanMenuDownload() {
+  // Sembunyikan filter status lunas jika "Master" yang dipilih awal
+  toggleFilterDownload();
+}
+
+function toggleFilterDownload() {
+  const sumber = document.getElementById("dlSumberData").value;
+  const boxStatus = document.getElementById("boxStatusLunas");
+  
+  if (sumber === "master") {
+    boxStatus.classList.add("d-none"); // Master tidak punya status lunas
+  } else {
+    boxStatus.classList.remove("d-none");
+  }
+}
+
+async function eksekusiDownloadKhusus() {
   if (window.AppInventor) { 
     alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) di HP atau Laptop."); 
     return; 
   }
   
+  const sumber = document.getElementById("dlSumberData").value;
   const jenisLayanan = document.getElementById("dlJenisLayanan").value;
   const fTarif = document.getElementById("dlTarif").value.trim().toUpperCase();
   const fDaya = document.getElementById("dlDaya").value.trim();
   const fStatus = document.getElementById("dlStatusLunas").value;
+  const btnDownload = document.getElementById("btnAksiDownload");
   
-  let filteredData = allData.filter(r => {
+  let dataToProcess = [];
+
+  // Jika minta data MASTER PELANGGAN, kita harus tarik dari Supabase karena belum ada di memori RAM
+  if (sumber === "master") {
+    btnDownload.innerText = "⏳ Sedang Menarik Master Data dari Server...";
+    btnDownload.disabled = true;
+    
+    try {
+      let fetchedMaster = [];
+      let from = 0;
+      const step = 2500;
+      
+      while (true) {
+        btnDownload.innerText = `⏳ Menarik Master Data... (${fetchedMaster.length.toLocaleString("id-ID")})`;
+        const { data, error } = await db.from('dataplg3').select('*').range(from, from + step - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        fetchedMaster = fetchedMaster.concat(data);
+        if (data.length < step) break;
+        from += step;
+      }
+      dataToProcess = fetchedMaster;
+    } catch (err) {
+      alert("Gagal menarik data Master: " + err.message);
+      btnDownload.innerText = "📥 Download Excel Data Filter";
+      btnDownload.disabled = false;
+      return;
+    }
+  } else {
+    // Jika minta data TUNGGAKAN, langsung ambil dari RAM yang sudah ada
+    dataToProcess = allData;
+  }
+  
+  // TERAPKAN FILTER
+  let filteredData = dataToProcess.filter(r => {
     let trf = String(r.tarif || "").toUpperCase().trim();
     let isPra = trf.endsWith("T"); // Jika berakhiran 'T', berarti Prabayar
     
-    // 1. Filter Layanan (Prabayar/Pascabayar)
+    // 1. Filter Layanan
     if (jenisLayanan === "pasca" && isPra) return false;
     if (jenisLayanan === "pra" && !isPra) return false;
     
-    // 2. Filter Tarif Spesifik (Opsional)
+    // 2. Filter Tarif
     if (fTarif !== "" && trf !== fTarif) return false;
     
-    // 3. Filter Daya Spesifik (Opsional)
+    // 3. Filter Daya
     if (fDaya !== "" && String(r.daya) !== fDaya) return false;
     
-    // 4. Filter Status Lunas
-    let st = getStatusLunas(r);
-    if (fStatus === "belum" && st.isLunas) return false;
-    if (fStatus === "lunas" && !st.isLunas) return false;
+    // 4. Filter Status Lunas (Hanya Berlaku untuk Data Tunggakan)
+    if (sumber === "tunggakan") {
+      let st = getStatusLunas(r);
+      if (fStatus === "belum" && st.isLunas) return false;
+      if (fStatus === "lunas" && !st.isLunas) return false;
+    }
     
-    return true; // Lolos semua filter
+    return true; // Lolos filter
   });
   
   if (filteredData.length === 0) {
     alert("⚠️ Tidak ada data yang cocok dengan kriteria filter tersebut!");
+    btnDownload.innerText = "📥 Download Excel Data Filter";
+    btnDownload.disabled = false;
     return;
   }
   
+  // EXPORT KE EXCEL
   const ws = XLSX.utils.json_to_sheet(filteredData);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Data Khusus");
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
   
-  let namaFile = `Data_${currentSheet}`;
+  let namaFile = sumber === "master" ? "Master_Pelanggan" : `Data_${currentSheet}`;
   if (jenisLayanan === "pra") namaFile += "_Prabayar";
   if (jenisLayanan === "pasca") namaFile += "_Pascabayar";
   if (fTarif) namaFile += `_Tarif-${fTarif}`;
   if (fDaya) namaFile += `_Daya-${fDaya}`;
-  if (fStatus !== "semua") namaFile += `_${fStatus.toUpperCase()}`;
+  if (sumber === "tunggakan" && fStatus !== "semua") namaFile += `_${fStatus.toUpperCase()}`;
   
   XLSX.writeFile(wb, `${namaFile}.xlsx`);
   
-  // Tutup Modal setelah mendownload
+  // Reset Tombol & Tutup Modal
+  btnDownload.innerText = "📥 Download Excel Data Filter";
+  btnDownload.disabled = false;
+  
   const modalEl = document.getElementById('downloadKhususModal');
   const modalInstance = bootstrap.Modal.getInstance(modalEl);
   if (modalInstance) modalInstance.hide();
