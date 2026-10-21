@@ -1048,28 +1048,47 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
     return q;
   };
 
-  let queryCount = pasangFilter(db.from('data_tunggakan').select('*', { count: 'exact', head: true }));
+  // 1. Hitung total data yang wajib ditarik
+  let queryCount = pasangFilter(db.from('data_tunggakan').select('idpel', { count: 'exact', head: true }));
   const { count, error: countErr } = await queryCount;
   if (countErr) throw countErr;
   if (!count || count === 0) return [];
 
+  // 2. Fungsi tarik per gelombang dengan WAJIB .order('idpel') agar baris tidak bergeser/acak!
   const step = 1000;
-  const promises = [];
+  const tarikGelombang = async (from) => {
+    for (let percobaan = 1; percobaan <= 3; percobaan++) {
+      let q = pasangFilter(
+        db.from('data_tunggakan')
+          .select(KOLOM_SELECT)
+          .order('idpel', { ascending: true }) // KUNCI UTAMA AGAR DATA TIDAK BERUBAH-UBAH
+          .range(from, from + step - 1)
+      );
+      const { data, error } = await q;
+      if (!error && data) return data;
+      // Jika gagal karena jaringan, tunggu 300ms lalu coba lagi
+      await new Promise(r => setTimeout(r, 300));
+    }
+    throw new Error("Koneksi tidak stabil saat memuat sebagian data. Silakan klik Refresh.");
+  };
+
+  // 3. Jalankan penarikan secara paralel (maksimal 4 gelombang sekaligus agar tidak kena limit)
+  let fetchedRows = [];
+  const daftarFrom = [];
   for (let from = 0; from < count; from += step) {
-    let q = pasangFilter(
-      db.from('data_tunggakan')
-        .select(KOLOM_SELECT)
-        .range(from, from + step - 1)
-    );
-    promises.push(q);
+    daftarFrom.push(from);
   }
 
-  const results = await Promise.all(promises);
-  let fetchedRows = [];
-  results.forEach(res => {
-    if (res.data) fetchedRows = fetchedRows.concat(res.data);
-  });
+  const batasParalel = 4;
+  for (let i = 0; i < daftarFrom.length; i += batasParalel) {
+    const grup = daftarFrom.slice(i, i + batasParalel);
+    const hasilGrup = await Promise.all(grup.map(f => tarikGelombang(f)));
+    hasilGrup.forEach(data => {
+      fetchedRows = fetchedRows.concat(data);
+    });
+  }
 
+  // 4. Pastikan unik dan urutkan berdasarkan koked di memori browser (sangat cepat & konsisten)
   const unikMap = new Map();
   fetchedRows.forEach(r => unikMap.set(r.idpel, r));
   fetchedRows = Array.from(unikMap.values());
@@ -1082,6 +1101,12 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
       return hari === null || hari >= 21;
     });
   }
+
+  fetchedRows.sort((a, b) => {
+    let k1 = String(a.koked || ""), k2 = String(b.koked || "");
+    if (k1 !== k2) return k1.localeCompare(k2, undefined, { numeric: true });
+    return String(a.idpel || "").localeCompare(String(b.idpel || ""));
+  });
 
   sheetCache[cacheKey] = fetchedRows;
   return fetchedRows;
