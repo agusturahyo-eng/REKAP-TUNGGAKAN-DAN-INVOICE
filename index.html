@@ -170,7 +170,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
       </div>
       <div class="modal-body small">
         <div class="mb-3 p-2 border border-info rounded bg-light">
-          <label class="form-label fw-bold text-primary mb-1">0. Pilih Sumber Data Excel:</label>
+          <label class="form-label fw-bold text-primary mb-1">0. Pilih Sumber Data Excel (Tab aktif: <span id="labelTabDownload" class="text-danger">Lembar 1</span>):</label>
           <select id="dlSumberData" class="form-select form-select-sm fw-bold border-primary" onchange="toggleFilterDownload()">
             <option value="tunggakan">Data Tampil (Sesuai Tab & Layar Saat Ini)</option>
             <option value="tunggakan_server">Semua Data Lembar Ini (Tarik dari Server, Termasuk Tgl 1-20)</option>
@@ -543,6 +543,14 @@ tr.clickable:hover td { filter: brightness(0.92); }
 </div>
 
 <script>
+// PELACAK ERROR OTOMATIS AGAR TIDAK BLANK PUTIH DIAM-DIAM
+window.onerror = function(msg, url, line) {
+  const infoEl = document.getElementById("updateInfo");
+  if (infoEl) {
+    infoEl.innerHTML = `<span class="text-danger fw-bold">⚠️ Kendala Sistem: ${msg} (Baris${line})</span>`;
+  }
+};
+
 // ============================================================================
 // 1. KONFIGURASI SUPABASE & PIN RAHASIA (ADMIN & TIM CETAK)
 // ============================================================================
@@ -552,11 +560,14 @@ const PIN_SUPER_ADMIN = "123123";  // SUPER ADMIN: Bisa upload Master & Tunggaka
 const PIN_ADMIN = "123456789";     // ADMIN HARIAN: Hanya atur Invoice & Pelunasan
 const PIN_CETAK = "12345";         // PETUGAS PRINT: Hanya tombol Cetak F4
 
-const db = supabase.createClient(SUPABASE_URL.trim(), SUPABASE_KEY.trim());
+const db = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_KEY.trim());
 const { jsPDF } = window.jspdf;
 if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
+
+const viewEl = document.getElementById("view");
+const backBtnEl = document.getElementById("backBtn");
 
 let allData = [], currentDetail = [], currentTitle = "", currentPetugas = "Semua", currentSheet = "lembar1";
 let historyStack = [], sortState = { key: null, asc: true };
@@ -1019,13 +1030,18 @@ async function loadSheet(k, forceRefresh = false) {
   document.querySelectorAll(".nav-link").forEach(t => t.classList.remove("active"));
   const tabEl = document.getElementById("tab-" + k);
   if (tabEl) tabEl.classList.add("active");
-  backBtn.classList.add("d-none");
+  if (backBtnEl) backBtnEl.classList.add("d-none");
+
+  const lblDl = document.getElementById("labelTabDownload");
+  if (lblDl) {
+    lblDl.innerText = (k === 'lembar1' ? 'Lembar 1' : k === 'lembar2' ? 'Lembar 2' : k === 'lembar3' ? 'Lembar 3' : 'Invoice');
+  }
 
   const btnCetakUtama = document.getElementById("btnCetakF4Utama");
   if (k === 'invoice' && isPrinterUnlocked) btnCetakUtama.classList.remove("d-none");
   else btnCetakUtama.classList.add("d-none");
 
-  view.innerHTML = "<div class='text-center my-5'><div class='spinner-border text-primary'></div><p class='mt-2 text-muted small'>Mengambil data dari Supabase...</p></div>";
+  viewEl.innerHTML = "<div class='text-center my-5'><div class='spinner-border text-primary'></div><p class='mt-2 text-muted small'>Mengambil data dari Supabase...</p></div>";
   
   try {
     allData = await ambilDataSheetDariSupabase(k, forceRefresh);
@@ -1058,15 +1074,17 @@ async function loadSheet(k, forceRefresh = false) {
 
     renderPetugas();
   } catch (err) {
-    view.innerHTML = `<div class="alert alert-danger"><b>Gagal memuat data Supabase:</b> ${err.message}</div>`;
+    viewEl.innerHTML = `<div class="alert alert-danger"><b>Gagal memuat data Supabase:</b> ${err.message}</div>`;
   }
 }
 
-function pushView(fn) { historyStack.push(fn); backBtn.classList.remove("d-none"); }
-backBtn.onclick = () => {
-  if (historyStack.length > 0) historyStack.pop()();
-  if (historyStack.length === 0) { backBtn.classList.add("d-none"); renderPetugas(); }
-};
+function pushView(fn) { historyStack.push(fn); if (backBtnEl) backBtnEl.classList.remove("d-none"); }
+if (backBtnEl) {
+  backBtnEl.onclick = () => {
+    if (historyStack.length > 0) historyStack.pop()();
+    if (historyStack.length === 0) { backBtnEl.classList.add("d-none"); renderPetugas(); }
+  };
+}
 
 // WARNA REKAP PERSIS SESUAI GAMBAR STANDAR ULP TULUNG
 function getWarnaProgress(persen, sisaLbr) {
@@ -1180,7 +1198,7 @@ function renderPetugas() {
           </button>
         </div>
       </div>`;
-    view.innerHTML = "";
+    viewEl.innerHTML = "";
     return;
   }
 
@@ -1350,7 +1368,7 @@ function renderPetugas() {
   
   h += `<td style="background-color: ${wGrandTotal.bg}; color: ${wGrandTotal.text};">${totalProgress}%</td>
         <td>${globalTglNihil}</td></tr>`;
-  view.innerHTML = h + `</tbody></table></div>`;
+  viewEl.innerHTML = h + `</tbody></table></div>`;
 }
 
 // ============================================================================
@@ -2765,7 +2783,7 @@ function openPetugas(k) {
         </tfoot>
       </table></div>`;
       
-  view.innerHTML = h;
+  viewEl.innerHTML = h;
 }
 
 function openGlobal() {
@@ -2815,7 +2833,7 @@ function openGlobal() {
         </tfoot>
       </table></div>`;
       
-  view.innerHTML = h;
+  viewEl.innerHTML = h;
 }
 
 function exportExcel() {
@@ -2838,7 +2856,6 @@ function exportSemuaExcel(k) {
 // FUNGSI DOWNLOAD DATA KHUSUS (PRABAYAR / PASCABAYAR / MASTER PELANGGAN)
 // ============================================================================
 function siapkanMenuDownload() {
-  // Sembunyikan filter status lunas jika "Master" yang dipilih awal
   toggleFilterDownload();
 }
 
@@ -2847,7 +2864,7 @@ function toggleFilterDownload() {
   const boxStatus = document.getElementById("boxStatusLunas");
   
   if (sumber === "master") {
-    boxStatus.classList.add("d-none"); // Master tidak punya status lunas
+    boxStatus.classList.add("d-none");
   } else {
     boxStatus.classList.remove("d-none");
   }
@@ -2868,7 +2885,6 @@ async function eksekusiDownloadKhusus() {
   
   let dataToProcess = [];
 
-  // JIKA TARIK DARI SERVER (MASTER / TUNGGAKAN_SERVER)
   if (sumber === "master" || sumber === "tunggakan_server") {
     btnDownload.innerText = "⏳ Sedang Menarik Data dari Server...";
     btnDownload.disabled = true;
@@ -2883,7 +2899,6 @@ async function eksekusiDownloadKhusus() {
         btnDownload.innerText = `⏳ Menarik Data... (${fetchedData.length.toLocaleString("id-ID")})`;
         let query = db.from(tableName).select('*').range(from, from + step - 1);
         
-        // Khusus tarik data tunggakan dari server, batasi agar hanya mengambil Lembar yg sedang dibuka
         if (sumber === "tunggakan_server") {
             if (currentSheet === 'lembar1') query = query.eq('lembar', 1);
             else if (currentSheet === 'lembar2') query = query.eq('lembar', 2);
@@ -2906,33 +2921,25 @@ async function eksekusiDownloadKhusus() {
       return;
     }
   } else {
-    // Jika minta data TUNGGAKAN TAMPIL, langsung ambil dari memori (layar)
     dataToProcess = allData;
   }
   
-  // TERAPKAN FILTER KE DATA YANG SUDAH DITARIK
   let filteredData = dataToProcess.filter(r => {
     let trf = String(r.tarif || "").toUpperCase().trim();
-    let isPra = trf.endsWith("T"); // Jika berakhiran 'T', berarti Prabayar
+    let isPra = trf.endsWith("T");
     
-    // 1. Filter Layanan
     if (jenisLayanan === "pasca" && isPra) return false;
     if (jenisLayanan === "pra" && !isPra) return false;
-    
-    // 2. Filter Tarif
     if (fTarif !== "" && trf !== fTarif) return false;
-    
-    // 3. Filter Daya
     if (fDaya !== "" && String(r.daya) !== fDaya) return false;
     
-    // 4. Filter Status Lunas (Hanya Berlaku untuk Data Tunggakan)
     if (sumber !== "master") {
       let st = getStatusLunas(r);
       if (fStatus === "belum" && st.isLunas) return false;
       if (fStatus === "lunas" && !st.isLunas) return false;
     }
     
-    return true; // Lolos filter
+    return true;
   });
   
   if (filteredData.length === 0) {
@@ -2942,7 +2949,6 @@ async function eksekusiDownloadKhusus() {
     return;
   }
   
-  // EXPORT KE EXCEL
   const ws = XLSX.utils.json_to_sheet(filteredData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Data");
@@ -2957,7 +2963,6 @@ async function eksekusiDownloadKhusus() {
   
   XLSX.writeFile(wb, `${namaFile}.xlsx`);
   
-  // Reset Tombol & Tutup Modal
   btnDownload.innerText = "📥 Download Excel Data Filter";
   btnDownload.disabled = false;
   
@@ -2984,7 +2989,7 @@ function renderDetail() {
     ? `<button class="btn btn-primary btn-sm text-nowrap fw-bold" onclick="bukaModalCetakF4('${currentPetugas}')">🖨️ CETAK F4 (4/LBR)</button>`
     : ``;
 
-  view.innerHTML = `<h6 class="text-center fw-bold small text-uppercase">${currentTitle.replace(/_/g,' ')}</h6><div class="d-flex mb-2 gap-1"><input id="search" class="form-control form-control-sm" placeholder="Cari IDPEL / Nama / Koked...">${btnCetakF4}<button class="btn btn-success btn-sm text-nowrap fw-bold" onclick="exportExcel()">📥 DOWNLOAD DETAIL</button></div><div id="tableArea"></div>`;
+  viewEl.innerHTML = `<h6 class="text-center fw-bold small text-uppercase">${currentTitle.replace(/_/g,' ')}</h6><div class="d-flex mb-2 gap-1"><input id="search" class="form-control form-control-sm" placeholder="Cari IDPEL / Nama / Koked...">${btnCetakF4}<button class="btn btn-success btn-sm text-nowrap fw-bold" onclick="exportExcel()">📥 DOWNLOAD DETAIL</button></div><div id="tableArea"></div>`;
   document.getElementById("search").oninput = e => {
     const t = e.target.value.toLowerCase();
     drawTable(currentDetail.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(t))));
@@ -3013,19 +3018,16 @@ function showCardsByData(id) {
   pushView(renderDetail);
   updateSummaryCards(currentPetugas || "Semua");
 
-  // Set urutan default ke 'koked' jika belum ada
   if (!window.urutanKartu) window.urutanKartu = 'koked';
 
-  // Urutkan data berdasarkan pilihan dropdown
   let sortedData = [...currentDetail].sort((a, b) => {
     if (window.urutanKartu === 'jumlah') {
-      return parseIDR(b.jumlah) - parseIDR(a.jumlah); // Tagihan Terbesar ke terkecil
+      return parseIDR(b.jumlah) - parseIDR(a.jumlah);
     }
     let v1 = a[window.urutanKartu] || "", v2 = b[window.urutanKartu] || "";
     return String(v1).localeCompare(String(v2), undefined, { numeric: true });
   });
 
-  // Tambahkan Dropdown Urutkan di atas daftar kartu
   let h = `
   <div class="d-flex justify-content-between align-items-center mb-2 px-1">
     <span class="small fw-bold text-muted">Total: ${sortedData.length} Plg</span>
@@ -3054,7 +3056,7 @@ function showCardsByData(id) {
       </div>
     </div></div>`;
   });
-  view.innerHTML = h;
+  viewEl.innerHTML = h;
   
   if(id) setTimeout(() => {
     const el = document.getElementById(`card-${id}`);
@@ -3375,9 +3377,6 @@ document.addEventListener('click', function(e) {
     }
 });
 </script>
-
-</body>
-</html>
 
 </body>
 </html>
