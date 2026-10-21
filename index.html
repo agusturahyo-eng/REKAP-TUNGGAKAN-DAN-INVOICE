@@ -559,8 +559,11 @@ let daftarMasterPetugas = [];
 let paksaTampilLembar1 = false;
 let isPrinterUnlocked = false;
 
+// Cache memori per tab & Pemisahan Kolom Ringan vs Lengkap (Lazy Load)
 let sheetCache = {};
+const KOLOM_RINGAN = "idpel,koked,nama,tarif,daya,lembar,rptag,rpbk,jumlah,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at";
 const KOLOM_SELECT = "idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at";
+const TGL_AWAL_BULAN = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","01","02","03","04","05","06","07","08","09"];
 
 let cacheFileBuffer = { input_awal: null, master_dil: null };
 let cacheFileName = { input_awal: "", master_dil: "" };
@@ -577,7 +580,50 @@ function formatGarduPendek(val) {
   return s;
 }
 
-// ================= FUNGSI PENCARIAN 1 IDPEL (BEBAS TEMPLATE LITERAL) =================
+// Fungsi Lazy Load untuk melengkapi alamat, gardu, dan no_kwh saat dibutuhkan saja
+async function lengkapiDetailData(arr) {
+  if (!arr || arr.length === 0) return arr;
+  const butuh = arr.filter(r => r.alamat === undefined);
+  if (butuh.length === 0) return arr;
+
+  const idpels = butuh.map(r => r.idpel);
+  const mapDetail = new Map();
+  const step = 500;
+  const promises = [];
+
+  for (let i = 0; i < idpels.length; i += step) {
+    const chunk = idpels.slice(i, i + step);
+    promises.push(
+      db.from('data_tunggakan')
+        .select('idpel,alamat,gardu,no_kwh')
+        .in('idpel', chunk)
+    );
+  }
+
+  const results = await Promise.all(promises);
+  results.forEach(res => {
+    if (res.data) {
+      res.data.forEach(d => mapDetail.set(d.idpel, d));
+    }
+  });
+
+  arr.forEach(r => {
+    const det = mapDetail.get(r.idpel);
+    if (det) {
+      r.alamat = det.alamat || "";
+      r.gardu = det.gardu || "";
+      r.no_kwh = det.no_kwh || "";
+    } else if (r.alamat === undefined) {
+      r.alamat = "";
+      r.gardu = "";
+      r.no_kwh = "";
+    }
+  });
+
+  return arr;
+}
+
+// ================= FUNGSI PENCARIAN 1 IDPEL =================
 function bukaModalCariIdpel() {
   document.getElementById("inputCariIdpel").value = "";
   document.getElementById("hasilCariIdpel").innerHTML = "";
@@ -964,9 +1010,9 @@ async function ekstrakBarisDariFilePdf(arrayBuffer, statusEl) {
 }
 
 // ============================================================================
-// 2. FUNGSI TARIK DATA DARI SUPABASE (PARALEL & CEPAT)
+// 2. FUNGSI TARIK DATA DARI SUPABASE (PARALEL + FILTER SERVER + LAZY LOAD)
 // ============================================================================
-async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
+async function ambilDataSheetDariSupabase(k, forceRefresh = false, butuhLengkap = false) {
   const tglHariIni = new Date().getDate();
 
   if (k === 'lembar1' && tglHariIni < 21 && !paksaTampilLembar1) {
@@ -975,15 +1021,32 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
 
   const cacheKey = k + (k === 'lembar1' ? '_' + paksaTampilLembar1 : '');
   if (!forceRefresh && sheetCache[cacheKey]) {
+    if (butuhLengkap) {
+      await lengkapiDetailData(sheetCache[cacheKey]);
+    }
     return sheetCache[cacheKey];
   }
 
-  let queryCount = db.from('data_tunggakan').select('*', { count: 'exact', head: true });
-  if (k === 'lembar1') queryCount = queryCount.eq('lembar', 1);
-  else if (k === 'lembar2') queryCount = queryCount.eq('lembar', 2);
-  else if (k === 'lembar3') queryCount = queryCount.gte('lembar', 3);
-  else if (k === 'invoice') queryCount = queryCount.eq('is_invoice', true);
+  const kolomPilihan = butuhLengkap ? KOLOM_SELECT : KOLOM_RINGAN;
 
+  const pasangFilter = (q) => {
+    if (k === 'lembar1') {
+      q = q.eq('lembar', 1);
+      // Filter langsung di Server Supabase: jangan download yang sudah lunas tgl 1-20
+      if (!paksaTampilLembar1) {
+        q = q.or('tgl_lunas.is.null,tgl_lunas.not.in.(' + TGL_AWAL_BULAN.join(',') + ')');
+      }
+    } else if (k === 'lembar2') {
+      q = q.eq('lembar', 2);
+    } else if (k === 'lembar3') {
+      q = q.gte('lembar', 3);
+    } else if (k === 'invoice') {
+      q = q.eq('is_invoice', true);
+    }
+    return q;
+  };
+
+  let queryCount = pasangFilter(db.from('data_tunggakan').select('*', { count: 'exact', head: true }));
   const { count, error: countErr } = await queryCount;
   if (countErr) throw countErr;
   if (!count || count === 0) return [];
@@ -991,17 +1054,11 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
   const step = 1000;
   const promises = [];
   for (let from = 0; from < count; from += step) {
-    let q = db.from('data_tunggakan')
-              .select(KOLOM_SELECT)
-              .order('koked', { ascending: true })
-              .order('idpel', { ascending: true })
-              .range(from, from + step - 1);
-    
-    if (k === 'lembar1') q = q.eq('lembar', 1);
-    else if (k === 'lembar2') q = q.eq('lembar', 2);
-    else if (k === 'lembar3') q = q.gte('lembar', 3);
-    else if (k === 'invoice') q = q.eq('is_invoice', true);
-
+    let q = pasangFilter(
+      db.from('data_tunggakan')
+        .select(kolomPilihan)
+        .range(from, from + step - 1)
+    );
     promises.push(q);
   }
 
@@ -1015,7 +1072,7 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
   fetchedRows.forEach(r => unikMap.set(r.idpel, r));
   fetchedRows = Array.from(unikMap.values());
 
-  if (k === 'lembar1') {
+  if (k === 'lembar1' && !paksaTampilLembar1) {
     fetchedRows = fetchedRows.filter(r => {
       let st = getStatusLunas(r);
       if (!st.isLunas) return true;
@@ -1046,7 +1103,7 @@ async function loadSheet(k, forceRefresh = false) {
   document.getElementById("viewAreaLayar").innerHTML = "<div class='text-center my-5'><div class='spinner-border text-primary'></div><p class='mt-2 text-muted small'>Mengambil data dari Supabase...</p></div>";
   
   try {
-    allData = await ambilDataSheetDariSupabase(k, forceRefresh);
+    allData = await ambilDataSheetDariSupabase(k, forceRefresh, false);
 
     let latestTime = null;
     allData.forEach(r => {
@@ -2532,6 +2589,11 @@ async function eksekusiCetakF4() {
       alert("Belum ada pelanggan BELUM LUNAS di daftar Invoice untuk dicetak!");
       return;
     }
+    btnDownload.disabled = true;
+    btnDownload.innerText = "⏳ Melengkapi detail alamat & gardu...";
+    await lengkapiDetailData(listCetak);
+    btnDownload.disabled = false;
+    btnDownload.innerText = "📥 Download PDF Siap Cetak (Ukuran F4 - 4 Invoice/Lembar)";
   }
 
   listCetak.sort((a, b) => {
@@ -2775,16 +2837,18 @@ function openGlobal() {
   document.getElementById("viewAreaLayar").innerHTML = h;
 }
 
-function exportExcel() {
+async function exportExcel() {
   if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
+  await lengkapiDetailData(currentDetail);
   const ws = XLSX.utils.json_to_sheet(currentDetail), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Data");
   XLSX.writeFile(wb, "Rekap_" + currentTitle + ".xlsx");
 }
 
-function exportSemuaExcel(k) {
+async function exportSemuaExcel(k) {
   if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
   const dataToExport = k === "Semua" ? allData : allData.filter(r => r.kode === k);
+  await lengkapiDetailData(dataToExport);
   const ws = XLSX.utils.json_to_sheet(dataToExport);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Semua Data");
@@ -2857,6 +2921,9 @@ async function eksekusiDownloadKhusus() {
       return;
     }
   } else {
+    btnDownload.innerText = "⏳ Melengkapi Detail Data...";
+    btnDownload.disabled = true;
+    await lengkapiDetailData(allData);
     dataToProcess = allData;
   }
   
@@ -2949,9 +3016,12 @@ function drawTable(data) {
   document.getElementById("tableArea").innerHTML = h + '</tbody></table></div>';
 }
 
-function showCardsByData(id) {
+async function showCardsByData(id) {
   pushView(renderDetail);
   updateSummaryCards(currentPetugas || "Semua");
+
+  document.getElementById("viewAreaLayar").innerHTML = "<div class='text-center my-4'><div class='spinner-border spinner-border-sm text-primary'></div> <span class='small text-muted'>Memuat kartu pelanggan...</span></div>";
+  await lengkapiDetailData(currentDetail);
 
   if (!window.urutanKartu) window.urutanKartu = 'koked';
 
