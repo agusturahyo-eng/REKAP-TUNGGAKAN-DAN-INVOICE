@@ -29,7 +29,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
 .summary-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 700; }
 .summary-value { font-size: 1.08rem; font-weight: 800; margin-top: 2px; }
 
-/* TABEL REKAP - WARNA SESUAI GAMBAR STANDAR ULP Tulung */
+/* TABEL REKAP - WARNA SESUAI GAMBAR STANDAR ULP TULUNG */
 .table-rekap { border-collapse: separate; border-spacing: 0; background: white; }
 .table-rekap thead th {
     background-color: #0052cc !important;
@@ -83,7 +83,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
 </head>
 <body>
 
-<!-- PELACAK ERROR FATAL: JIKA ADA SYNTAX ERROR, AKAN MUNCUL KOTAK MERAH DI SINI -->
+<!-- PELACAK ERROR FATAL -->
 <div id="errorTrackerBox"></div>
 <script>
   window.addEventListener('error', function(e) {
@@ -102,18 +102,26 @@ tr.clickable:hover td { filter: brightness(0.92); }
       <li class="nav-item"><a class="nav-link" id="tab-lembar3" onclick="loadSheet('lembar3')">Lembar 3</a></li>
       <li class="nav-item"><a class="nav-link" id="tab-invoice" onclick="loadSheet('invoice')">Invoice</a></li>
     </ul>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+      <!-- Tombol Cari IDPEL (Bebas Akses) -->
       <button class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#cariIdpelModal" onclick="bukaModalCariIdpel()">
         🔍 Cari IDPEL
       </button>
+      <!-- Tombol Filter & Download (Khusus Super Admin 123123) -->
       <button id="btnDownloadKhusus" class="btn btn-info btn-sm fw-bold shadow-sm d-none" data-bs-toggle="modal" data-bs-target="#downloadKhususModal" onclick="siapkanMenuDownload()">
         📥 Filter & Download
       </button>
+      <!-- Tombol Cetak F4 -->
       <button id="btnCetakF4Utama" class="btn btn-success btn-sm fw-bold shadow-sm d-none" onclick="bukaModalCetakF4('Semua')">
         🖨️ Cetak Invoice F4 (4/Lembar) & Biaya Admin
       </button>
+      <!-- Tombol Kelola & Update Data -->
       <button id="btnAdmin" class="btn btn-primary btn-sm fw-bold shadow-sm d-none" data-bs-toggle="modal" data-bs-target="#adminModal" onclick="muatDaftarPetugasModal()">
         ⚙️ Kelola & Update Data
+      </button>
+      <!-- Tombol Pintas Kunci PIN -->
+      <button id="btnLockPin" class="btn btn-outline-secondary btn-sm fw-bold shadow-sm" onclick="klikTombolPin()" title="Buka / Kunci Menu Pengaturan Admin">
+        🔒 PIN
       </button>
     </div>
   </div>
@@ -554,14 +562,13 @@ if (window.pdfjsLib) {
 }
 
 let allData = [], currentDetail = [], currentTitle = "", currentPetugas = "Semua", currentSheet = "lembar1";
-let historyStack = [], sortState = { key: null, asc: true };
+let historyStack = [], sortState = { key: 'koked', asc: true };
 let daftarMasterPetugas = [];
 let paksaTampilLembar1 = false;
 let isPrinterUnlocked = false;
+window.urutanKartu = 'koked';
 
-// Cache memori per tab & Pemisahan Kolom Ringan vs Lengkap (Lazy Load)
 let sheetCache = {};
-const KOLOM_RINGAN = "idpel,koked,nama,tarif,daya,lembar,rptag,rpbk,jumlah,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at";
 const KOLOM_SELECT = "idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at";
 const TGL_AWAL_BULAN = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","01","02","03","04","05","06","07","08","09"];
 
@@ -578,49 +585,6 @@ function formatGarduPendek(val) {
     .replace(/\s*\/\s*$/, "")
     .trim();
   return s;
-}
-
-// Fungsi Lazy Load untuk melengkapi alamat, gardu, dan no_kwh saat dibutuhkan saja
-async function lengkapiDetailData(arr) {
-  if (!arr || arr.length === 0) return arr;
-  const butuh = arr.filter(r => r.alamat === undefined);
-  if (butuh.length === 0) return arr;
-
-  const idpels = butuh.map(r => r.idpel);
-  const mapDetail = new Map();
-  const step = 500;
-  const promises = [];
-
-  for (let i = 0; i < idpels.length; i += step) {
-    const chunk = idpels.slice(i, i + step);
-    promises.push(
-      db.from('data_tunggakan')
-        .select('idpel,alamat,gardu,no_kwh')
-        .in('idpel', chunk)
-    );
-  }
-
-  const results = await Promise.all(promises);
-  results.forEach(res => {
-    if (res.data) {
-      res.data.forEach(d => mapDetail.set(d.idpel, d));
-    }
-  });
-
-  arr.forEach(r => {
-    const det = mapDetail.get(r.idpel);
-    if (det) {
-      r.alamat = det.alamat || "";
-      r.gardu = det.gardu || "";
-      r.no_kwh = det.no_kwh || "";
-    } else if (r.alamat === undefined) {
-      r.alamat = "";
-      r.gardu = "";
-      r.no_kwh = "";
-    }
-  });
-
-  return arr;
 }
 
 // ================= FUNGSI PENCARIAN 1 IDPEL =================
@@ -724,6 +688,7 @@ function setBiayaAdminPetugas(kode, nominal) {
   localStorage.setItem("admin_rp_" + kode.toLowerCase(), String(nominal || 0));
 }
 
+// ================= SISTEM PIN AKSES & SIMPAN OTOMATIS =================
 let hitungKlikJudul = 0;
 let timerKlikJudul = null;
 
@@ -734,21 +699,41 @@ function bukaPintuRahasia() {
 
   if (hitungKlikJudul >= 5) {
     hitungKlikJudul = 0;
-    document.getElementById("inputPasswordPin").value = "";
-    const modalEl = new bootstrap.Modal(document.getElementById('pinModal'));
-    modalEl.show();
-    setTimeout(() => document.getElementById("inputPasswordPin").focus(), 500);
+    tampilkanModalPin();
   }
 }
 
-function cekPinLogin() {
-  const inputPin = document.getElementById("inputPasswordPin").value;
-  const modalEl = bootstrap.Modal.getInstance(document.getElementById('pinModal'));
-  if (modalEl) modalEl.hide();
+function klikTombolPin() {
+  const savedPin = localStorage.getItem("ulp_saved_pin");
+  if (savedPin) {
+    if (confirm("Menu Pengaturan sedang terbuka. Ingin mengunci kembali tombol Admin & Cetak?")) {
+      localStorage.removeItem("ulp_saved_pin");
+      isPrinterUnlocked = false;
+      document.getElementById("btnAdmin").classList.add("d-none");
+      document.getElementById("btnDownloadKhusus").classList.add("d-none");
+      document.getElementById("btnCetakF4Utama").classList.add("d-none");
+      document.getElementById("btnLockPin").innerHTML = "🔒 PIN";
+      document.getElementById("btnLockPin").className = "btn btn-outline-secondary btn-sm fw-bold shadow-sm";
+    }
+  } else {
+    tampilkanModalPin();
+  }
+}
 
+function tampilkanModalPin() {
+  document.getElementById("inputPasswordPin").value = "";
+  const modalEl = new bootstrap.Modal(document.getElementById('pinModal'));
+  modalEl.show();
+  setTimeout(() => document.getElementById("inputPasswordPin").focus(), 500);
+}
+
+function terapkanAksesPin(inputPin, bukaModalOtomatis = false) {
   if (inputPin === PIN_SUPER_ADMIN || inputPin === PIN_ADMIN) {
     isPrinterUnlocked = true;
+    localStorage.setItem("ulp_saved_pin", inputPin);
     document.getElementById("btnAdmin").classList.remove("d-none");
+    document.getElementById("btnLockPin").innerHTML = "🔓 Admin";
+    document.getElementById("btnLockPin").className = "btn btn-outline-success btn-sm fw-bold shadow-sm";
     if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
     
     if (inputPin === PIN_ADMIN) {
@@ -761,17 +746,40 @@ function cekPinLogin() {
       document.getElementById("btnDownloadKhusus").classList.remove("d-none");
     }
 
-    muatDaftarPetugasModal();
-    const adminModalEl = new bootstrap.Modal(document.getElementById('adminModal'));
-    adminModalEl.show();
-    
+    if (bukaModalOtomatis) {
+      muatDaftarPetugasModal();
+      const adminModalEl = new bootstrap.Modal(document.getElementById('adminModal'));
+      adminModalEl.show();
+    }
+    return true;
   } else if (inputPin === PIN_CETAK) {
     isPrinterUnlocked = true;
+    localStorage.setItem("ulp_saved_pin", inputPin);
+    document.getElementById("btnLockPin").innerHTML = "🔓 Cetak";
+    document.getElementById("btnLockPin").className = "btn btn-outline-success btn-sm fw-bold shadow-sm";
     if (currentSheet === 'invoice') document.getElementById("btnCetakF4Utama").classList.remove("d-none");
-    bukaModalCetakF4(currentPetugas || 'Semua');
-  } else if (inputPin !== "") {
+    if (bukaModalOtomatis) {
+      bukaModalCetakF4(currentPetugas || 'Semua');
+    }
+    return true;
+  }
+  return false;
+}
+
+function cekPinLogin() {
+  const inputPin = document.getElementById("inputPasswordPin").value;
+  const modalEl = bootstrap.Modal.getInstance(document.getElementById('pinModal'));
+  if (modalEl) modalEl.hide();
+
+  if (!terapkanAksesPin(inputPin, true) && inputPin !== "") {
     alert("❌ PIN salah!");
   }
+}
+
+// Pulihkan status PIN jika sebelumnya sudah pernah login
+const savedPinInit = localStorage.getItem("ulp_saved_pin");
+if (savedPinInit) {
+  terapkanAksesPin(savedPinInit, false);
 }
 
 document.getElementById("inputTglLunas").value = new Date().getDate();
@@ -1010,9 +1018,9 @@ async function ekstrakBarisDariFilePdf(arrayBuffer, statusEl) {
 }
 
 // ============================================================================
-// 2. FUNGSI TARIK DATA DARI SUPABASE (PARALEL + FILTER SERVER + LAZY LOAD)
+// 2. FUNGSI TARIK DATA DARI SUPABASE (PARALEL + FILTER SERVER)
 // ============================================================================
-async function ambilDataSheetDariSupabase(k, forceRefresh = false, butuhLengkap = false) {
+async function ambilDataSheetDariSupabase(k, forceRefresh = false) {
   const tglHariIni = new Date().getDate();
 
   if (k === 'lembar1' && tglHariIni < 21 && !paksaTampilLembar1) {
@@ -1021,18 +1029,12 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false, butuhLengkap 
 
   const cacheKey = k + (k === 'lembar1' ? '_' + paksaTampilLembar1 : '');
   if (!forceRefresh && sheetCache[cacheKey]) {
-    if (butuhLengkap) {
-      await lengkapiDetailData(sheetCache[cacheKey]);
-    }
     return sheetCache[cacheKey];
   }
-
-  const kolomPilihan = butuhLengkap ? KOLOM_SELECT : KOLOM_RINGAN;
 
   const pasangFilter = (q) => {
     if (k === 'lembar1') {
       q = q.eq('lembar', 1);
-      // Filter langsung di Server Supabase: jangan download yang sudah lunas tgl 1-20
       if (!paksaTampilLembar1) {
         q = q.or('tgl_lunas.is.null,tgl_lunas.not.in.(' + TGL_AWAL_BULAN.join(',') + ')');
       }
@@ -1056,7 +1058,7 @@ async function ambilDataSheetDariSupabase(k, forceRefresh = false, butuhLengkap 
   for (let from = 0; from < count; from += step) {
     let q = pasangFilter(
       db.from('data_tunggakan')
-        .select(kolomPilihan)
+        .select(KOLOM_SELECT)
         .range(from, from + step - 1)
     );
     promises.push(q);
@@ -1103,7 +1105,7 @@ async function loadSheet(k, forceRefresh = false) {
   document.getElementById("viewAreaLayar").innerHTML = "<div class='text-center my-5'><div class='spinner-border text-primary'></div><p class='mt-2 text-muted small'>Mengambil data dari Supabase...</p></div>";
   
   try {
-    allData = await ambilDataSheetDariSupabase(k, forceRefresh, false);
+    allData = await ambilDataSheetDariSupabase(k, forceRefresh);
 
     let latestTime = null;
     allData.forEach(r => {
@@ -2589,11 +2591,6 @@ async function eksekusiCetakF4() {
       alert("Belum ada pelanggan BELUM LUNAS di daftar Invoice untuk dicetak!");
       return;
     }
-    btnDownload.disabled = true;
-    btnDownload.innerText = "⏳ Melengkapi detail alamat & gardu...";
-    await lengkapiDetailData(listCetak);
-    btnDownload.disabled = false;
-    btnDownload.innerText = "📥 Download PDF Siap Cetak (Ukuran F4 - 4 Invoice/Lembar)";
   }
 
   listCetak.sort((a, b) => {
@@ -2837,18 +2834,16 @@ function openGlobal() {
   document.getElementById("viewAreaLayar").innerHTML = h;
 }
 
-async function exportExcel() {
+function exportExcel() {
   if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
-  await lengkapiDetailData(currentDetail);
   const ws = XLSX.utils.json_to_sheet(currentDetail), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Data");
   XLSX.writeFile(wb, "Rekap_" + currentTitle + ".xlsx");
 }
 
-async function exportSemuaExcel(k) {
+function exportSemuaExcel(k) {
   if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
   const dataToExport = k === "Semua" ? allData : allData.filter(r => r.kode === k);
-  await lengkapiDetailData(dataToExport);
   const ws = XLSX.utils.json_to_sheet(dataToExport);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Semua Data");
@@ -2921,9 +2916,6 @@ async function eksekusiDownloadKhusus() {
       return;
     }
   } else {
-    btnDownload.innerText = "⏳ Melengkapi Detail Data...";
-    btnDownload.disabled = true;
-    await lengkapiDetailData(allData);
     dataToProcess = allData;
   }
   
@@ -2992,7 +2984,16 @@ function renderDetail() {
     ? '<button class="btn btn-primary btn-sm text-nowrap fw-bold" onclick="bukaModalCetakF4(\'' + currentPetugas + '\')">🖨️ CETAK F4 (4/LBR)</button>'
     : '';
 
-  document.getElementById("viewAreaLayar").innerHTML = '<h6 class="text-center fw-bold small text-uppercase">' + currentTitle.replace(/_/g,' ') + '</h6><div class="d-flex mb-2 gap-1"><input id="search" class="form-control form-control-sm" placeholder="Cari IDPEL / Nama / Koked...">' + btnCetakF4 + '<button class="btn btn-success btn-sm text-nowrap fw-bold" onclick="exportExcel()">📥 DOWNLOAD DETAIL</button></div><div id="tableArea"></div>';
+  document.getElementById("viewAreaLayar").innerHTML = 
+    '<h6 class="text-center fw-bold small text-uppercase mb-2">' + currentTitle.replace(/_/g,' ') + ' (' + currentDetail.length + ' Plg)</h6>' +
+    '<div class="d-flex flex-wrap mb-2 gap-1">' +
+      '<input id="search" class="form-control form-control-sm flex-grow-1" style="min-width:160px;" placeholder="🔍 Cari IDPEL / Nama / Koked / Alamat...">' +
+      '<button class="btn btn-outline-primary btn-sm text-nowrap fw-bold" onclick="showCardsByData(\'\')">🃏 TAMPILAN KARTU</button>' +
+      btnCetakF4 +
+      '<button class="btn btn-success btn-sm text-nowrap fw-bold" onclick="exportExcel()">📥 DOWNLOAD EXCEL</button>' +
+    '</div>' +
+    '<div id="tableArea"></div>';
+
   document.getElementById("search").oninput = e => {
     const t = e.target.value.toLowerCase();
     drawTable(currentDetail.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(t))));
@@ -3010,39 +3011,63 @@ function drawTable(data) {
     });
     drawTable(sorted);
   };
-  const icon = (k) => sortState.key === k ? (sortState.asc ? ' ▲' : ' ▼') : '';
-  let h = '<div class="table-responsive"><table class="table table-sm table-bordered table-striped bg-white" style="font-size:0.75rem"><thead class="table-primary text-nowrap"><tr><th class="clickable text-start" onclick="triggerSort(\'idpel\')">IDPEL' + icon('idpel') + '</th><th class="clickable text-start" onclick="triggerSort(\'nama\')">Nama' + icon('nama') + '</th><th class="clickable text-center" onclick="triggerSort(\'koked\')">Koked' + icon('koked') + '</th><th class="clickable text-end" onclick="triggerSort(\'jumlah\')">Rp' + icon('jumlah') + '</th></tr></thead><tbody>';
-  data.forEach(r => { h += '<tr class="clickable" onclick="showCardsByData(\'' + r.idpel + '\')"><td class="text-start">' + r.idpel + '</td><td class="text-start fw-semibold">' + r.nama + '</td><td class="text-center">' + r.koked + '</td><td class="text-end fw-bold">' + parseIDR(r.jumlah).toLocaleString("id-ID") + '</td></tr>'; });
+  const icon = (k) => sortState.key === k ? (sortState.asc ? ' ▲' : ' ▼') : ' ⇅';
+  let h = '<div class="table-responsive"><table class="table table-sm table-bordered table-striped bg-white" style="font-size:0.75rem"><thead class="table-primary text-nowrap"><tr>' +
+          '<th class="clickable text-start" onclick="triggerSort(\'idpel\')">IDPEL' + icon('idpel') + '</th>' +
+          '<th class="clickable text-start" onclick="triggerSort(\'nama\')">Nama' + icon('nama') + '</th>' +
+          '<th class="clickable text-center" onclick="triggerSort(\'koked\')">Koked' + icon('koked') + '</th>' +
+          '<th class="clickable text-end" onclick="triggerSort(\'jumlah\')">Rp' + icon('jumlah') + '</th>' +
+          '</tr></thead><tbody>';
+  data.forEach(r => { 
+    h += '<tr class="clickable" onclick="showCardsByData(\'' + r.idpel + '\')">' +
+         '<td class="text-start">' + r.idpel + '</td>' +
+         '<td class="text-start fw-semibold">' + r.nama + '</td>' +
+         '<td class="text-center">' + r.koked + '</td>' +
+         '<td class="text-end fw-bold">' + parseIDR(r.jumlah).toLocaleString("id-ID") + '</td></tr>'; 
+  });
   document.getElementById("tableArea").innerHTML = h + '</tbody></table></div>';
 }
 
-async function showCardsByData(id) {
-  pushView(renderDetail);
+// ================= CARD VIEW DENGAN FITUR SORTIR & PENCARIAN LENGKAP =================
+function showCardsByData(id, isReSort = false) {
+  if (!isReSort) {
+    pushView(renderDetail);
+  }
   updateSummaryCards(currentPetugas || "Semua");
-
-  document.getElementById("viewAreaLayar").innerHTML = "<div class='text-center my-4'><div class='spinner-border spinner-border-sm text-primary'></div> <span class='small text-muted'>Memuat kartu pelanggan...</span></div>";
-  await lengkapiDetailData(currentDetail);
 
   if (!window.urutanKartu) window.urutanKartu = 'koked';
 
   let sortedData = [...currentDetail].sort((a, b) => {
-    if (window.urutanKartu === 'jumlah') {
+    if (window.urutanKartu === 'jumlah_desc') {
       return parseIDR(b.jumlah) - parseIDR(a.jumlah);
     }
-    let v1 = a[window.urutanKartu] || "", v2 = b[window.urutanKartu] || "";
+    if (window.urutanKartu === 'jumlah_asc') {
+      return parseIDR(a.jumlah) - parseIDR(b.jumlah);
+    }
+    if (window.urutanKartu === 'nama_desc') {
+      return String(b.nama || "").localeCompare(String(a.nama || ""), undefined, { numeric: true });
+    }
+    let key = window.urutanKartu;
+    let v1 = a[key] || "", v2 = b[key] || "";
     return String(v1).localeCompare(String(v2), undefined, { numeric: true });
   });
 
   let h = 
-  '<div class="d-flex justify-content-between align-items-center mb-2 px-1">' +
-    '<span class="small fw-bold text-muted">Total: ' + sortedData.length + ' Plg</span>' +
+  '<div class="bg-white p-2 rounded border shadow-sm mb-2 d-flex flex-wrap justify-content-between align-items-center gap-2 sticky-top" style="top: 8px; z-index: 10;">' +
     '<div class="d-flex align-items-center gap-2">' +
-      '<span class="small fw-bold text-primary">Urutkan:</span>' +
-      '<select class="form-select form-select-sm fw-bold border-primary text-primary" style="width: auto; background-color: #f8fafc;" onchange="window.urutanKartu=this.value; showCardsByData(\'' + (id || '') + '\')">' +
-        '<option value="koked" ' + (window.urutanKartu==='koked'?'selected':'') + '>Koked (Rute)</option>' +
-        '<option value="nama" ' + (window.urutanKartu==='nama'?'selected':'') + '>Nama Pelanggan</option>' +
-        '<option value="idpel" ' + (window.urutanKartu==='idpel'?'selected':'') + '>IDPEL</option>' +
-        '<option value="jumlah" ' + (window.urutanKartu==='jumlah'?'selected':'') + '>Tagihan Terbesar</option>' +
+      '<span class="badge bg-primary py-2 px-2">Total: ' + sortedData.length + ' Plg</span>' +
+      '<button class="btn btn-outline-secondary btn-sm fw-bold py-1" onclick="document.getElementById(\'backBtn\').click()">📋 Mode Tabel</button>' +
+    '</div>' +
+    '<div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end">' +
+      '<label class="small fw-bold text-primary mb-0 text-nowrap">🔃 Urutkan:</label>' +
+      '<select class="form-select form-select-sm fw-bold border-primary text-primary" style="width: auto; max-width: 220px; background-color: #f8fafc;" onchange="window.urutanKartu=this.value; showCardsByData(\'' + (id || '') + '\', true)">' +
+        '<option value="koked" ' + (window.urutanKartu==='koked'?'selected':'') + '>🧭 Koked (Rute Baca)</option>' +
+        '<option value="nama" ' + (window.urutanKartu==='nama'?'selected':'') + '>👤 Nama Pelanggan (A-Z)</option>' +
+        '<option value="nama_desc" ' + (window.urutanKartu==='nama_desc'?'selected':'') + '>👤 Nama Pelanggan (Z-A)</option>' +
+        '<option value="idpel" ' + (window.urutanKartu==='idpel'?'selected':'') + '>🔢 Nomor IDPEL</option>' +
+        '<option value="jumlah_desc" ' + (window.urutanKartu==='jumlah_desc'?'selected':'') + '>💰 Tagihan Terbesar</option>' +
+        '<option value="jumlah_asc" ' + (window.urutanKartu==='jumlah_asc'?'selected':'') + '>💰 Tagihan Terkecil</option>' +
+        '<option value="alamat" ' + (window.urutanKartu==='alamat'?'selected':'') + '>📍 Alamat</option>' +
       '</select>' +
     '</div>' +
   '</div>';
@@ -3064,10 +3089,12 @@ async function showCardsByData(id) {
   });
   document.getElementById("viewAreaLayar").innerHTML = h;
   
-  if(id) setTimeout(() => {
-    const el = document.getElementById("card-" + id);
-    if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
-  }, 100);
+  if (id && !isReSort) {
+    setTimeout(() => {
+      const el = document.getElementById("card-" + id);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 100);
+  }
 }
 
 const getFullText = (r, type) => {
