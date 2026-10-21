@@ -1021,9 +1021,6 @@ async function loadSheet(k, forceRefresh = false) {
   if (tabEl) tabEl.classList.add("active");
   backBtn.classList.add("d-none");
 
-  // Update label di modal download
-  document.getElementById("labelTabDownload").innerText = (k === 'lembar1' ? 'Lembar 1' : k === 'lembar2' ? 'Lembar 2' : k === 'lembar3' ? 'Lembar 3' : 'Invoice');
-
   const btnCetakUtama = document.getElementById("btnCetakF4Utama");
   if (k === 'invoice' && isPrinterUnlocked) btnCetakUtama.classList.remove("d-none");
   else btnCetakUtama.classList.add("d-none");
@@ -1595,7 +1592,6 @@ async function prosesInputDataAwal() {
           };
 
           idxIdpel  = findCol(["IDPEL", "IDPELANGGAN"], 2);
-          // PERBAIKAN: Tambahkan "RBM" dan "NORBM" agar file update tunggakan otomatis terbaca rutenya
           idxKoked  = findCol(["KOKED", "KDDK", "KODEKEDUDUKAN", "RBM", "NORBM"], -1);
           idxNama   = findCol(["NAMA", "NAMAPELANGGAN"], 3);
           idxAlamat = findCol(["ALAMAT", "ALAMATPELANGGAN", "PNJ", "NAMAPNJ"], -1);
@@ -1806,7 +1802,6 @@ function ekstrakBarisMasterFleksibel(rows) {
 
     idxIdpel     = findIdx(["IDPEL", "IDPELANGGAN"]);
     if (idxIdpel === -1) idxIdpel = 0;
-    // PERBAIKAN: Tambahkan "RBM" dan "NORBM" untuk Master
     idxKddk      = findIdx(["KDDK", "KOKED", "KODEKEDUDUKAN", "RBM", "NORBM"]);
     idxNama      = findIdx(["NAMA", "NAMAPELANGGAN"]);
     idxAlamat    = findIdx(["ALAMAT", "ALAMATPELANGGAN", "NAMAPNJ", "PNJ", "DUSUN", "DESA"]);
@@ -3380,6 +3375,9 @@ document.addEventListener('click', function(e) {
     }
 });
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
