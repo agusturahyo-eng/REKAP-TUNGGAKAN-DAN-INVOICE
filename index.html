@@ -206,7 +206,8 @@ tr.clickable:hover td { filter: brightness(0.92); }
           <div class="text-dark mb-2" style="font-size:0.78rem;">
             Agar arsip bulanan bisa tersimpan di server dan dibuka dari HP/Laptop mana saja tanpa pindah file, jalankan script SQL berikut <b>1 kali saja</b> di menu <b>SQL Editor</b> pada dashboard Supabase Anda:
           </div>
-          <pre id="teksScriptSqlArsip" class="bg-dark text-light p-2 rounded mb-0" style="font-size:0.72rem; max-height:130px; overflow:auto;">CREATE TABLE IF NOT EXISTS public.arsip_rekap_bulanan (
+          <pre id="teksScriptSqlArsip" class="bg-dark text-light p-2 rounded mb-0" style="font-size:0.72rem; max-height:150px; overflow:auto;">-- 1. Buat Tabel Arsip Rekap Bulanan di Server Supabase
+CREATE TABLE IF NOT EXISTS public.arsip_rekap_bulanan (
   id TEXT PRIMARY KEY,
   periode TEXT NOT NULL,
   waktu_backup TEXT,
@@ -219,14 +220,51 @@ tr.clickable:hover td { filter: brightness(0.92); }
 ALTER TABLE public.arsip_rekap_bulanan ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Akses Penuh Arsip Bulanan" ON public.arsip_rekap_bulanan;
 CREATE POLICY "Akses Penuh Arsip Bulanan" ON public.arsip_rekap_bulanan FOR ALL USING (true) WITH CHECK (true);
-GRANT ALL ON TABLE public.arsip_rekap_bulanan TO anon, authenticated, service_role;</pre>
+GRANT ALL ON TABLE public.arsip_rekap_bulanan TO anon, authenticated, service_role;
+
+-- 2. Buat Fungsi Backup Otomatis di Server
+CREATE OR REPLACE FUNCTION public.backup_otomatis_di_server(p_periode TEXT DEFAULT NULL)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $func$
+DECLARE
+  v_periode TEXT; v_waktu TEXT; v_l1 JSONB; v_l2 JSONB; v_l3 JSONB; v_inv JSONB; v_total INT;
+BEGIN
+  SELECT count(*) INTO v_total FROM public.data_tunggakan;
+  IF v_total = 0 THEN RETURN 'KOSONG'; END IF;
+  IF p_periode IS NULL OR trim(p_periode) = '' THEN
+    v_periode := to_char(now() - interval '5 days', 'FMMonth_YYYY');
+  ELSE
+    v_periode := replace(trim(p_periode), ' ', '_');
+  END IF;
+  v_waktu := to_char(now() AT TIME ZONE 'Asia/Jakarta', 'DD/MM/YYYY, HH24.MI.SS');
+  SELECT COALESCE(jsonb_agg(t ORDER BY koked, idpel), '[]'::jsonb) INTO v_l1 FROM (SELECT idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at FROM public.data_tunggakan WHERE lembar = 1 AND (tgl_lunas IS NULL OR trim(tgl_lunas) NOT IN ('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','01','02','03','04','05','06','07','08','09'))) t;
+  SELECT COALESCE(jsonb_agg(t ORDER BY koked, idpel), '[]'::jsonb) INTO v_l2 FROM (SELECT idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at FROM public.data_tunggakan WHERE lembar = 2) t;
+  SELECT COALESCE(jsonb_agg(t ORDER BY koked, idpel), '[]'::jsonb) INTO v_l3 FROM (SELECT idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at FROM public.data_tunggakan WHERE lembar >= 3) t;
+  SELECT COALESCE(jsonb_agg(t ORDER BY koked, idpel), '[]'::jsonb) INTO v_inv FROM (SELECT idpel,koked,nama,tarif,daya,alamat,lembar,rptag,rpbk,jumlah,gardu,no_kwh,kode,nama_petugas,koordinator,is_invoice,tgl_lunas,updated_at FROM public.data_tunggakan WHERE is_invoice = true) t;
+  INSERT INTO public.arsip_rekap_bulanan (id, periode, waktu_backup, timestamp, jml_hari, counts, data_json, updated_at)
+  VALUES (v_periode, v_periode, v_waktu, (extract(epoch from now()) * 1000)::bigint, 31, jsonb_build_object('l1', jsonb_array_length(v_l1), 'l2', jsonb_array_length(v_l2), 'l3', jsonb_array_length(v_l3), 'inv', jsonb_array_length(v_inv)), jsonb_build_object('lembar1', v_l1, 'lembar2', v_l2, 'lembar3', v_l3, 'invoice', v_inv), now())
+  ON CONFLICT (id) DO UPDATE SET periode = EXCLUDED.periode, waktu_backup = EXCLUDED.waktu_backup, timestamp = EXCLUDED.timestamp, counts = EXCLUDED.counts, data_json = EXCLUDED.data_json, updated_at = now();
+  RETURN v_periode;
+END;
+$func$;
+
+-- 3. Sisipkan Otomatis 1 Baris PERFORM public.backup_otomatis_di_server(); ke dalam ganti_bulan_baru()
+DO $ inject $
+DECLARE v_def TEXT;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_def FROM pg_proc WHERE proname = 'ganti_bulan_baru' AND pronamespace = 'public'::regnamespace LIMIT 1;
+  IF v_def IS NOT NULL AND position('backup_otomatis_di_server' in v_def) = 0 THEN
+    v_def := regexp_replace(v_def, '\mBEGIN\M', E'BEGIN
+  PERFORM public.backup_otomatis_di_server();', 'i');
+    EXECUTE v_def;
+  END IF;
+END $ inject $;</pre>
         </div>
 
         <!-- BAGIAN 1: DAFTAR ARSIP TERSIMPAN DI SERVER SUPABASE & BROWSER -->
         <div class="card border-primary shadow-sm mb-3">
           <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
-            <span class="fw-bold">1. Daftar Arsip Bulanan di Server Supabase (Bisa Dibuka dari Semua HP/Laptop)</span>
-            <div class="d-flex gap-1 flex-wrap">
+            <span class="fw-bold">Daftar Arsip Bulanan (Klik 👁️ Tampilkan untuk Melihat Rekap)</span>
+            <div id="boxTombolSimpanArsipAdmin" class="d-flex gap-1 flex-wrap d-none">
               <button class="btn btn-light btn-sm fw-bold py-0 px-2 text-primary" onclick="buatBackupRekapBulanan(false)" title="Simpan ke Server Supabase tanpa download file ke perangkat">
                 ☁️ Simpan Bulan Ini ke Server
               </button>
@@ -242,10 +280,10 @@ GRANT ALL ON TABLE public.arsip_rekap_bulanan TO anon, authenticated, service_ro
           </div>
         </div>
 
-        <!-- BAGIAN 2: IMPOR FILE BACKUP LAMA (.HTML ATAU .XLSX) KE SERVER SUPABASE -->
-        <div class="card border-success shadow-sm mb-2">
+        <!-- BAGIAN 2: IMPOR FILE BACKUP LAMA (.HTML ATAU .XLSX) KE SERVER SUPABASE (KHUSUS ADMIN) -->
+        <div id="cardUploadArsipAdmin" class="card border-success shadow-sm mb-2 d-none">
           <div class="card-header bg-success text-white py-2 fw-bold">
-            2. Upload / Buka File Backup Lama (.html atau .xlsx) & Simpan ke Server
+            Upload / Buka File Backup Lama (.html atau .xlsx) & Simpan ke Server (Khusus Admin)
           </div>
           <div class="card-body p-3 bg-white">
             <div class="text-muted mb-2">
@@ -2745,7 +2783,7 @@ async function simpanArsipKeServerSupabase(recordArsip) {
 
     const { error } = await db.from(NAMA_TABEL_ARSIP_SUPABASE).upsert(payload, { onConflict: "id" });
     if (error) {
-      if (cekErrorTabelBelumAda(error)) {
+      if (cekErrorTabelBelumAda(error) && apakahAdminTerbuka()) {
         const boxSql = document.getElementById("boxInfoSqlArsip");
         if (boxSql) boxSql.classList.remove("d-none");
       }
@@ -2840,10 +2878,26 @@ async function hapusSatuArsipDariDbLokal(idArsip) {
   }
 }
 
+function apakahAdminTerbuka() {
+  const savedPin = localStorage.getItem("ulp_saved_pin");
+  return (savedPin === PIN_SUPER_ADMIN || savedPin === PIN_ADMIN);
+}
+
 async function bukaModalArsipBulanLama() {
   document.getElementById("statusModalArsipLama").innerHTML = "";
   const fileEl = document.getElementById("inputFileArsipLama");
   if (fileEl) fileEl.value = "";
+
+  const isAdmin = apakahAdminTerbuka();
+  const btnSimpanBox = document.getElementById("boxTombolSimpanArsipAdmin");
+  const cardUpload = document.getElementById("cardUploadArsipAdmin");
+  if (btnSimpanBox) btnSimpanBox.classList.toggle("d-none", !isAdmin);
+  if (cardUpload) cardUpload.classList.toggle("d-none", !isAdmin);
+  if (!isAdmin) {
+    const boxSql = document.getElementById("boxInfoSqlArsip");
+    if (boxSql) boxSql.classList.add("d-none");
+  }
+
   await muatDaftarArsipTersimpan();
 }
 
@@ -2863,7 +2917,7 @@ async function muatDaftarArsipTersimpan() {
 
     if (error) {
       serverTersedia = false;
-      if (cekErrorTabelBelumAda(error)) {
+      if (cekErrorTabelBelumAda(error) && apakahAdminTerbuka()) {
         const boxSql = document.getElementById("boxInfoSqlArsip");
         if (boxSql) boxSql.classList.remove("d-none");
       }
@@ -2941,10 +2995,17 @@ async function muatDaftarArsipTersimpan() {
     const badgeAktif = sedangAktif ? ' <span class="badge bg-success">Sedang Tampil</span>' : '';
     const idSafe = String(item.id).replace(/'/g, "\\'");
 
+    const isAdmin = apakahAdminTerbuka();
+    const tombolUploadLokal = isAdmin
+      ? ' <button class="btn btn-outline-primary btn-sm py-0 px-1 fw-bold" style="font-size:0.68rem;" onclick="uploadArsipLokalKeServer(\'' + idSafe + '\')">☁️ Upload</button>'
+      : '';
     const badgeLokasi = item.diServer
       ? '<span class="badge bg-success" title="Tersimpan di Server Supabase (Bisa dibuka dari semua HP/Laptop)">☁️ Server Supabase</span>'
-      : '<span class="badge bg-secondary" title="Hanya tersimpan di browser perangkat ini">💻 Browser Lokal</span> ' +
-        '<button class="btn btn-outline-primary btn-sm py-0 px-1 fw-bold" style="font-size:0.68rem;" onclick="uploadArsipLokalKeServer(\'' + idSafe + '\')">☁️ Upload</button>';
+      : '<span class="badge bg-secondary" title="Hanya tersimpan di browser perangkat ini">💻 Browser Lokal</span>' + tombolUploadLokal;
+
+    const tombolHapusAdmin = isAdmin
+      ? '<button class="btn btn-outline-danger btn-sm fw-bold py-0 px-2" onclick="hapusItemArsipLokal(\'' + idSafe + '\')" title="Hapus Arsip (Khusus Admin)">🗑️</button>'
+      : '';
 
     h += '<tr class="' + (sedangAktif ? 'table-warning' : '') + '">' +
       '<td class="fw-bold text-primary">' + String(item.periode).replace(/_/g, ' ') + badgeAktif + '</td>' +
@@ -2959,8 +3020,8 @@ async function muatDaftarArsipTersimpan() {
       '<td class="text-center text-nowrap">' +
         '<button class="btn btn-primary btn-sm fw-bold py-0 px-2 me-1" onclick="aktifkanModeArsipDariDb(\'' + idSafe + '\')">👁️ Tampilkan</button>' +
         '<button class="btn btn-outline-success btn-sm fw-bold py-0 px-2 me-1" onclick="downloadUlangExcelArsip(\'' + idSafe + '\')" title="Download Excel Multi-Sheet">📥 Excel</button>' +
-        '<button class="btn btn-outline-dark btn-sm fw-bold py-0 px-2 me-1" onclick="downloadUlangHtmlArsip(\'' + idSafe + '\')" title="Download File Tampilan HTML Offline">🌐 HTML</button>' +
-        '<button class="btn btn-outline-danger btn-sm fw-bold py-0 px-2" onclick="hapusItemArsipLokal(\'' + idSafe + '\')" title="Hapus Arsip">🗑️</button>' +
+        '<button class="btn btn-outline-dark btn-sm fw-bold py-0 px-2" onclick="downloadUlangHtmlArsip(\'' + idSafe + '\')" title="Download File Tampilan HTML Offline">🌐 HTML</button>' +
+        (tombolHapusAdmin ? ' ' + tombolHapusAdmin : '') +
       '</td>' +
     '</tr>';
   });
@@ -3472,18 +3533,24 @@ async function buatBackupRekapBulanan(unduhFileKePerangkat = true) {
 }
 
 async function prosesGantiBulan() {
-  if (confirm("📦 Apakah Anda ingin mendownload BACKUP Rekap Lembar 1, 2, dan 3 bulan ini terlebih dahulu sebelum data direset?\n\n• Klik [OK] untuk Download Backup terlebih dahulu\n• Klik [Cancel / Batal] jika sudah mem-backup dan ingin langsung lanjut Reset")) {
-    const suksesBackup = await buatBackupRekapBulanan();
-    if (!suksesBackup) return;
-  }
+  if (!confirm("⚠️ Yakin ingin memulai Bulan Baru sekarang?\n\nSistem akan OTOMATIS mem-backup Arsip Rekap Bulan Ini ke Server Supabase, menyimpan memori Invoice & Tanggal Lunas L1, lalu mereset tabel untuk bulan baru.")) return;
 
-  if (!confirm("⚠️ Yakin ingin memulai Bulan Baru sekarang?\n\nSistem akan otomatis menyimpan memori pelanggan Invoice (beserta Tanggal Lunasnya), Nunggak 2 & 3, serta Nunggak L1 bulan ini (beserta Tanggal Lunasnya) ke tabel pengingat, lalu mengosongkan tabel untuk diisi data bulan baru.")) return;
+  const unduhLokal = (!window.AppInventor) && confirm("📥 Apakah Anda juga ingin sekalian mendownload file Excel (.xlsx) & HTML Backup bulan ini ke perangkat Anda?\n\n• Klik [OK] untuk Simpan ke Server + Download File\n• Klik [Cancel] untuk Simpan ke Server Supabase saja");
+
   const statusEl = document.getElementById("statusProsesModal");
-  statusEl.innerHTML = '<span class="text-primary">⏳ Menyimpan memori Invoice & mereset tabel...</span>';
+  statusEl.innerHTML = '<span class="text-primary">☁️ Mengamankan arsip bulan lama ke Server Supabase sebelum reset...</span>';
+
+  // 1. Jalankan backup otomatis ke Server Supabase (dan unduh file jika diminta)
+  await buatBackupRekapBulanan(unduhLokal);
+
+  // 2. Panggil juga RPC backup_otomatis_di_server jika sudah terpasang di SQL Supabase, lalu jalankan ganti_bulan_baru
+  statusEl.innerHTML = '<span class="text-primary">⏳ Menyimpan memori Invoice & mereset tabel untuk bulan baru...</span>';
+  try { await db.rpc('backup_otomatis_di_server'); } catch (e) {}
+
   const { error } = await db.rpc('ganti_bulan_baru');
   if (error) statusEl.innerHTML = '<span class="text-danger">❌ Error: ' + error.message + '</span>';
   else {
-    statusEl.innerHTML = '<span class="text-success">✅ Tabel berhasil direset! Memori Invoice & Tanggal Lunas L1 bulan lalu telah diamankan.</span>';
+    statusEl.innerHTML = '<span class="text-success">✅ Tabel berhasil direset! Arsip Rekap bulan lalu serta memori Invoice & L1 telah diamankan di Server Supabase.</span>';
     loadSheet(currentSheet, true);
   }
 }
@@ -4780,4 +4847,3 @@ document.addEventListener('click', function(e) {
 
 </body>
 </html>
-
