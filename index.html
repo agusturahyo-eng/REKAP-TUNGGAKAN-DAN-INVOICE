@@ -7,7 +7,7 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -187,39 +187,69 @@ tr.clickable:hover td { filter: brightness(0.92); }
   </div>
 </div>
 
-<!-- ================= MODAL BUKA & KELOLA ARSIP BULAN LAMA ================= -->
+<!-- ================= MODAL BUKA & KELOLA ARSIP BULAN LAMA (SERVER SUPABASE & LOKAL) ================= -->
 <div class="modal fade" id="arsipBulanLamaModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white py-2">
-        <h6 class="modal-title fw-bold">📂 Buka & Lihat Arsip Rekap Bulan Lama (Lembar 1, 2, 3 & Invoice)</h6>
+        <h6 class="modal-title fw-bold">☁️ Arsip Rekap Bulan Lama (Server Supabase & Perangkat)</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body small bg-light">
 
-        <!-- BAGIAN 1: DAFTAR ARSIP TERSIMPAN DI BROWSER -->
+        <!-- PERINGATAN OTOMATIS JIKA TABEL SUPABASE BELUM DIBUAT -->
+        <div id="boxInfoSqlArsip" class="alert alert-warning border-warning shadow-sm d-none mb-3">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+            <strong class="text-dark">⚠️ Tabel <code>arsip_rekap_bulanan</code> Belum Ada di Server Supabase!</strong>
+            <button class="btn btn-dark btn-sm fw-bold py-0 px-2" onclick="copyScriptSqlArsip()">📋 Copy Script SQL</button>
+          </div>
+          <div class="text-dark mb-2" style="font-size:0.78rem;">
+            Agar arsip bulanan bisa tersimpan di server dan dibuka dari HP/Laptop mana saja tanpa pindah file, jalankan script SQL berikut <b>1 kali saja</b> di menu <b>SQL Editor</b> pada dashboard Supabase Anda:
+          </div>
+          <pre id="teksScriptSqlArsip" class="bg-dark text-light p-2 rounded mb-0" style="font-size:0.72rem; max-height:130px; overflow:auto;">CREATE TABLE IF NOT EXISTS public.arsip_rekap_bulanan (
+  id TEXT PRIMARY KEY,
+  periode TEXT NOT NULL,
+  waktu_backup TEXT,
+  timestamp BIGINT,
+  jml_hari INT DEFAULT 31,
+  counts JSONB DEFAULT '{}'::jsonb,
+  data_json JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.arsip_rekap_bulanan ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Akses Penuh Arsip Bulanan" ON public.arsip_rekap_bulanan;
+CREATE POLICY "Akses Penuh Arsip Bulanan" ON public.arsip_rekap_bulanan FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE public.arsip_rekap_bulanan TO anon, authenticated, service_role;</pre>
+        </div>
+
+        <!-- BAGIAN 1: DAFTAR ARSIP TERSIMPAN DI SERVER SUPABASE & BROWSER -->
         <div class="card border-primary shadow-sm mb-3">
           <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
-            <span class="fw-bold">1. Daftar Arsip Bulan Lama Tersimpan (Klik Langsung Tampil)</span>
-            <button class="btn btn-warning btn-sm fw-bold py-0 px-2 text-dark" onclick="buatBackupRekapBulanan()">
-              ➕ Buat & Simpan Backup Bulan Ini
-            </button>
+            <span class="fw-bold">1. Daftar Arsip Bulanan di Server Supabase (Bisa Dibuka dari Semua HP/Laptop)</span>
+            <div class="d-flex gap-1 flex-wrap">
+              <button class="btn btn-light btn-sm fw-bold py-0 px-2 text-primary" onclick="buatBackupRekapBulanan(false)" title="Simpan ke Server Supabase tanpa download file ke perangkat">
+                ☁️ Simpan Bulan Ini ke Server
+              </button>
+              <button class="btn btn-warning btn-sm fw-bold py-0 px-2 text-dark" onclick="buatBackupRekapBulanan(true)" title="Simpan ke Server Supabase sekaligus Download file Excel & HTML">
+                📦 Simpan Server + Download File
+              </button>
+            </div>
           </div>
           <div class="card-body p-2 bg-white">
             <div id="daftarArsipTersimpanBox" class="table-responsive">
-              <div class="text-center text-muted py-3">Memuat daftar arsip tersimpan...</div>
+              <div class="text-center text-muted py-3">Memuat daftar arsip dari server Supabase...</div>
             </div>
           </div>
         </div>
 
-        <!-- BAGIAN 2: BUKA DARI FILE BACKUP DI HP / LAPTOP (.HTML ATAU .XLSX) -->
+        <!-- BAGIAN 2: IMPOR FILE BACKUP LAMA (.HTML ATAU .XLSX) KE SERVER SUPABASE -->
         <div class="card border-success shadow-sm mb-2">
           <div class="card-header bg-success text-white py-2 fw-bold">
-            2. Buka File Backup dari HP / Komputer (.html atau .xlsx)
+            2. Upload / Buka File Backup Lama (.html atau .xlsx) & Simpan ke Server
           </div>
           <div class="card-body p-3 bg-white">
             <div class="text-muted mb-2">
-              Pilih file <b><code>Tampilan_Rekap_ULP_Tulung_...html</code></b> atau <b><code>Backup_Rekap_ULP_Tulung_...xlsx</code></b> yang pernah Anda download sebelumnya. Sistem otomatis menampilkan rekap Lembar 1, 2, 3, & Invoice ke halaman utama sekaligus menyimpannya ke daftar di atas!
+              Punya file backup bulan lama (<b><code>.html</code></b> atau <b><code>.xlsx</code></b>) di HP/Laptop? Pilih filenya di bawah ini untuk langsung ditampilkan ke layar sekaligus <b>otomatis di-upload ke Server Supabase</b> agar bisa dibuka dari perangkat lain!
             </div>
             <div class="row g-2 align-items-center">
               <div class="col-md-8">
@@ -227,7 +257,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
               </div>
               <div class="col-md-4">
                 <button class="btn btn-success btn-sm fw-bold w-100 py-1 shadow-sm" onclick="prosesBukaFileBackupLama()">
-                  📂 Buka & Tampilkan di Layar
+                  ☁️ Buka & Upload ke Server
                 </button>
               </div>
             </div>
@@ -237,7 +267,7 @@ tr.clickable:hover td { filter: brightness(0.92); }
 
       </div>
       <div class="modal-footer py-1 bg-white d-flex justify-content-between">
-        <span class="text-muted small">💡 Saat arsip dibuka, Anda bisa klik tab Lembar 1, 2, 3, Invoice & rincian petugas seperti biasa.</span>
+        <span class="text-muted small">💡 Arsip berlabel <b>☁️ Server</b> dapat langsung dibuka dari HP atau laptop mana saja tanpa pindah file.</span>
         <button type="button" class="btn btn-secondary btn-sm fw-bold" data-bs-dismiss="modal">Tutup</button>
       </div>
     </div>
@@ -272,9 +302,10 @@ tr.clickable:hover td { filter: brightness(0.92); }
         <div class="mb-3 p-2 border border-info rounded bg-light">
           <label class="form-label fw-bold text-primary mb-1">0. Pilih Sumber Data Excel (Tab aktif: <span id="labelTabDownload" class="text-danger">Lembar 1</span>):</label>
           <select id="dlSumberData" class="form-select form-select-sm fw-bold border-primary" onchange="toggleFilterDownload()">
-            <option value="tunggakan">Data Tampil (Sesuai Tab & Layar Saat Ini)</option>
-            <option value="tunggakan_server">Semua Data Lembar Ini (Tarik dari Server, Termasuk Tgl 1-20)</option>
-            <option value="master">Seluruh MASTER PELANGGAN (dataplg3)</option>
+            <option value="rekap_berwarna">🎨 Tabel Rekap Berwarna (Persis Tampilan Layar Saat Ini)</option>
+            <option value="tunggakan">📋 Rincian Pelanggan Tampil (Sesuai Tab & Layar Saat Ini)</option>
+            <option value="tunggakan_server">☁️ Semua Pelanggan Lembar Ini (Tarik Server, Termasuk Tgl 1-20)</option>
+            <option value="master">🗂️ Seluruh MASTER PELANGGAN (dataplg3)</option>
           </select>
         </div>
 
@@ -2343,6 +2374,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
   const startDay = (jenisSheet === 'lembar1') ? 21 : 1;
   const targetEndDay = (jenisSheet === 'lembar1') ? jmlHariBulan : 20;
   const displayEndDay = jmlHariBulan;
+  const numDays = displayEndDay - startDay + 1;
 
   const map = {};
   dataRows.forEach(r => {
@@ -2389,10 +2421,70 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     });
   });
 
-  const headerExcel1 = ["NO", "KOORDINATOR", "KODE", "PETUGAS", "TOTAL SALDO (LBR)", "TOTAL SALDO (RP)", "SALDO SAAT INI (LBR)", "SALDO SAAT INI (RP)", "TARGET HARI INI"];
-  for (let i = startDay; i <= displayEndDay; i++) headerExcel1.push("TGL " + i);
-  headerExcel1.push("PROGRES TOTAL", "TANGGAL NIHIL");
-  const aoaExcel = [headerExcel1];
+  // Helper pembuat sel Excel berwarna & bergaris (kompatibel penuh dengan xlsx-js-style)
+  const buatSelExcel = (val, tipe, bgHex, textHex, alignH = "center", isBold = false, numFmt = null, borderHex = "CBD5E1") => {
+    const cleanBg = String(bgHex || "#FFFFFF").replace("#", "").toUpperCase();
+    const cleanTxt = String(textHex || "#000000").replace("#", "").toUpperCase();
+    const cell = {
+      v: val,
+      t: tipe,
+      s: {
+        fill: { patternType: "solid", fgColor: { rgb: cleanBg } },
+        font: { name: "Segoe UI", sz: 9, bold: Boolean(isBold), color: { rgb: cleanTxt } },
+        alignment: { horizontal: alignH, vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: borderHex } },
+          bottom: { style: "thin", color: { rgb: borderHex } },
+          left: { style: "thin", color: { rgb: borderHex } },
+          right: { style: "thin", color: { rgb: borderHex } }
+        }
+      }
+    };
+    if (numFmt) {
+      cell.z = numFmt;
+      cell.s.numFmt = numFmt;
+    }
+    return cell;
+  };
+
+  // Susun 2 Baris Header Bertingkat untuk Excel Berwarna (Persis Tampilan Web)
+  const rowHdr0 = [
+    buatSelExcel("NO", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("KOORDINATOR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("KODE", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("PETUGAS", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("TOTAL SALDO", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("SALDO SAAT INI", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("TARGET HARI INI", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+  ];
+  const rowHdr1 = [
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("LEMBAR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("RUPIAH", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("LEMBAR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("RUPIAH", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+  ];
+
+  for (let i = startDay; i <= displayEndDay; i++) {
+    rowHdr0.push(buatSelExcel(i === startDay ? "JUMLAH LUNAS TANGGAL" : "", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"));
+    rowHdr1.push(buatSelExcel(i, "n", "0052CC", "FFFFFF", "center", true, "0", "003D99"));
+  }
+  rowHdr0.push(
+    buatSelExcel("PROGRES TOTAL", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("TANGGAL NIHIL", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+  );
+  rowHdr1.push(
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+  );
+
+  const styledMatrix = [rowHdr0, rowHdr1];
 
   let h = '<div class="table-responsive rekap-container"><table class="table table-sm table-rekap" style="font-size: 0.76rem;"><thead style="position: sticky; top: 0; z-index: 2;"><tr>' +
           '<th rowspan="2" class="align-middle">NO</th>' +
@@ -2402,7 +2494,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
           '<th colspan="2">TOTAL SALDO</th>' +
           '<th colspan="2">SALDO SAAT INI</th>' +
           '<th rowspan="2" class="align-middle">TARGET HARI INI</th>' +
-          '<th colspan="' + (displayEndDay - startDay + 1) + '">JUMLAH LUNAS TANGGAL</th>' +
+          '<th colspan="' + numDays + '">JUMLAH LUNAS TANGGAL</th>' +
           '<th rowspan="2" class="align-middle">PROGRES TOTAL</th>' +
           '<th rowspan="2" class="align-middle">TANGGAL NIHIL</th>' +
         '</tr><tr><th>LEMBAR</th><th class="text-end">RUPIAH</th><th>LEMBAR</th><th class="text-end">RUPIAH</th>';
@@ -2434,7 +2526,17 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     let wTotal = getWarnaProgress(progress, p.j_sisa);
     let tglNihil = p.j_sisa === 0 ? (p.max_tgl_lunas > 0 ? p.max_tgl_lunas : 'SELESAI') : 'BELUM';
 
-    const rowExcel = [no, p.koordinator, p.kode, p.nama_petugas, p.j_total, p.rp_total, p.j_sisa, p.rp_sisa, targetDinamis];
+    const rowStyled = [
+      buatSelExcel(no, "n", currentBgColor, "#000000", "center", false, "0"),
+      buatSelExcel(p.koordinator || "", "s", currentBgColor, "#000000", "left", true),
+      buatSelExcel(p.kode || "", "s", currentBgColor, "#000000", "left", false),
+      buatSelExcel(p.nama_petugas || "", "s", currentBgColor, "#000000", "left", true),
+      buatSelExcel(p.j_total, "n", currentBgColor, "#000000", "center", false, "#,##0"),
+      buatSelExcel(p.rp_total, "n", currentBgColor, "#000000", "right", false, '"Rp "#,##0'),
+      buatSelExcel(p.j_sisa, "n", wTotal.bg, wTotal.text, "center", true, "#,##0"),
+      buatSelExcel(p.rp_sisa, "n", wTotal.bg, wTotal.text, "right", true, '"Rp "#,##0'),
+      buatSelExcel(targetDinamis, "n", "#FFFFFF", "#0052CC", "center", true, "#,##0")
+    ];
 
     let rowHtml = '<tr class="clickable" onclick="openPetugas(\'' + p.kode + '\')">' +
       '<td style="background-color: ' + currentBgColor + ';">' + (no++) + '</td>' +
@@ -2454,16 +2556,19 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
 
     for (let i = startDay; i <= displayEndDay; i++) {
       let val = p.lunas_harian[i] || 0;
-      rowExcel.push(val);
       let targetSimulasi = sisaSimulasi > 0 ? (i >= targetEndDay ? sisaSimulasi : Math.ceil(sisaSimulasi / (targetEndDay - i + 1))) : 0;
       let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
       let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
       rowHtml += '<td style="background-color: ' + wHarian.bg + '; color: ' + wHarian.text + ';">' + val + '</td>';
+      rowStyled.push(buatSelExcel(val, "n", wHarian.bg, wHarian.text, "center", false, "0"));
       sisaSimulasi -= val;
     }
 
-    rowExcel.push(progress + "%", tglNihil);
-    aoaExcel.push(rowExcel);
+    rowStyled.push(
+      buatSelExcel(progress + "%", "s", wTotal.bg, wTotal.text, "center", true),
+      buatSelExcel(String(tglNihil), "s", "#FFFFFF", "#000000", "center", true)
+    );
+    styledMatrix.push(rowStyled);
 
     rowHtml += '<td class="fw-bold" style="background-color: ' + wTotal.bg + '; color: ' + wTotal.text + ';">' + progress + '%</td>' +
                '<td class="fw-bold" style="background-color: #ffffff;">' + tglNihil + '</td></tr>';
@@ -2474,7 +2579,17 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
   let wGrandTotal = getWarnaProgress(totalProgress, sumSisaLbr);
   let globalTglNihil = sumSisaLbr === 0 ? (globalMaxTglLunas > 0 ? globalMaxTglLunas : 'SELESAI') : 'BELUM';
 
-  const rowTotalExcel = ["", "", "", "JUMLAH KESELURUHAN", sumTotalLbr, sumTotalRp, sumSisaLbr, sumSisaRp, sumTargetHarian];
+  const rowTotalStyled = [
+    buatSelExcel("JUMLAH KESELURUHAN", "s", "#E0F2FE", "#000000", "center", true),
+    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
+    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
+    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
+    buatSelExcel(sumTotalLbr, "n", "#E0F2FE", "#000000", "center", true, "#,##0"),
+    buatSelExcel(sumTotalRp, "n", "#E0F2FE", "#000000", "right", true, '"Rp "#,##0'),
+    buatSelExcel(sumSisaLbr, "n", wGrandTotal.bg, wGrandTotal.text, "center", true, "#,##0"),
+    buatSelExcel(sumSisaRp, "n", wGrandTotal.bg, wGrandTotal.text, "right", true, '"Rp "#,##0'),
+    buatSelExcel(sumTargetHarian, "n", "#E0F2FE", "#0052CC", "center", true, "#,##0")
+  ];
 
   h += '<tr class="fw-bold clickable" style="background-color: #e0f2fe;" onclick="openGlobal()">' +
       '<td colspan="4" class="text-center freeze-col" style="background-color: #e0f2fe;">JUMLAH KESELURUHAN</td>' +
@@ -2490,19 +2605,57 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
 
   for (let i = startDay; i <= displayEndDay; i++) {
     let val = sumHarianGlobal[i] || 0;
-    rowTotalExcel.push(val);
     let targetSimulasi = globalSisaSimulasi > 0 ? (i >= targetEndDay ? globalSisaSimulasi : Math.ceil(globalSisaSimulasi / (targetEndDay - i + 1))) : 0;
     let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
     let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
     h += '<td style="background-color: ' + wTotalHarian.bg + '; color: ' + wTotalHarian.text + ';">' + val + '</td>';
+    rowTotalStyled.push(buatSelExcel(val, "n", wTotalHarian.bg, wTotalHarian.text, "center", true, "#,##0"));
     globalSisaSimulasi -= val;
   }
 
-  rowTotalExcel.push(totalProgress + "%", globalTglNihil);
-  aoaExcel.push(rowTotalExcel);
+  rowTotalStyled.push(
+    buatSelExcel(totalProgress + "%", "s", wGrandTotal.bg, wGrandTotal.text, "center", true),
+    buatSelExcel(String(globalTglNihil), "s", "#E0F2FE", "#000000", "center", true)
+  );
+  styledMatrix.push(rowTotalStyled);
 
   h += '<td style="background-color: ' + wGrandTotal.bg + '; color: ' + wGrandTotal.text + ';">' + totalProgress + '%</td>' +
        '<td>' + globalTglNihil + '</td></tr></tbody></table></div>';
+
+  // Konversi styledMatrix menjadi Worksheet Excel Berwarna Lengkap dengan Merge & Lebar Kolom
+  const wsStyled = XLSX.utils.aoa_to_sheet(styledMatrix);
+  const colProgress = 9 + numDays;
+  const colNihil = 10 + numDays;
+  const lastRowIdx = styledMatrix.length - 1;
+
+  wsStyled["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+    { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+    { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },
+    { s: { r: 0, c: 3 }, e: { r: 1, c: 3 } },
+    { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+    { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+    { s: { r: 0, c: 8 }, e: { r: 1, c: 8 } },
+    { s: { r: 0, c: 9 }, e: { r: 0, c: 9 + numDays - 1 } },
+    { s: { r: 0, c: colProgress }, e: { r: 1, c: colProgress } },
+    { s: { r: 0, c: colNihil }, e: { r: 1, c: colNihil } },
+    { s: { r: lastRowIdx, c: 0 }, e: { r: lastRowIdx, c: 3 } }
+  ];
+
+  const colsWidth = [
+    { wch: 4.5 },  // NO
+    { wch: 18 },   // KOORDINATOR
+    { wch: 6.5 },  // KODE
+    { wch: 18 },   // PETUGAS
+    { wch: 9 },    // TOTAL LBR
+    { wch: 16 },   // TOTAL RP
+    { wch: 9 },    // SISA LBR
+    { wch: 15 },   // SISA RP
+    { wch: 11 }    // TARGET HARI INI
+  ];
+  for (let i = 0; i < numDays; i++) colsWidth.push({ wch: 4.5 });
+  colsWidth.push({ wch: 12 }, { wch: 12 });
+  wsStyled["!cols"] = colsWidth;
 
   const summaryHtml =
     '<div class="col-6 col-md-3"><div class="summary-card"><div class="summary-label d-flex justify-content-between align-items-center"><span>Total Saldo Awal</span><span class="badge bg-secondary ms-1" style="font-size:0.65rem;">SEMUA PETUGAS</span></div><div class="summary-value text-dark">' + sumTotalLbr.toLocaleString("id-ID") + ' Lbr <span class="text-muted fw-normal small">(Rp ' + sumTotalRp.toLocaleString("id-ID") + ')</span></div></div></div>' +
@@ -2510,16 +2663,33 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     '<div class="col-6 col-md-3"><div class="summary-card"><div class="summary-label d-flex justify-content-between align-items-center"><span>Sudah Lunas</span><span class="badge bg-secondary ms-1" style="font-size:0.65rem;">SEMUA PETUGAS</span></div><div class="summary-value text-success">' + (sumTotalLbr - sumSisaLbr).toLocaleString("id-ID") + ' Lbr <span class="text-muted fw-normal small">(Target Hari Ini: ' + sumTargetHarian + ')</span></div></div></div>' +
     '<div class="col-6 col-md-3"><div class="summary-card"><div class="summary-label d-flex justify-content-between align-items-center"><span>Progres Capaian</span><span class="badge bg-secondary ms-1" style="font-size:0.65rem;">SEMUA PETUGAS</span></div><div class="summary-value text-primary">' + totalProgress + '%</div><div class="progress mt-1" style="height:6px;"><div class="progress-bar bg-primary" style="width:' + totalProgress + '%"></div></div></div></div>';
 
-  return { summaryHtml: summaryHtml, tableHtml: h, aoa: aoaExcel };
+  return { summaryHtml: summaryHtml, tableHtml: h, aoa: styledMatrix, wsStyled: wsStyled };
 }
 
-// ================= SISTEM PENYIMPANAN & PENAMPIL ARSIP BULAN LAMA (INDEXEDDB + FILE) =================
+// ================= SISTEM PENYIMPANAN & PENAMPIL ARSIP BULAN LAMA (SERVER SUPABASE + INDEXEDDB + FILE) =================
 let modeArsipAktif = false;
 let dataArsipAktif = { lembar1: [], lembar2: [], lembar3: [], invoice: [] };
 let infoArsipAktif = { periode: "", waktuBackup: "", jmlHari: 31 };
 
+const NAMA_TABEL_ARSIP_SUPABASE = "arsip_rekap_bulanan";
 const NAMA_DB_ARSIP = "ulp_tulung_arsip_db";
 const NAMA_STORE_ARSIP = "arsip_bulanan";
+
+function copyScriptSqlArsip() {
+  const preEl = document.getElementById("teksScriptSqlArsip");
+  if (!preEl) return;
+  navigator.clipboard.writeText(preEl.innerText).then(() => {
+    alert("✅ Script SQL berhasil di-copy! Silakan buka Dashboard Supabase -> menu SQL Editor -> Paste -> klik Run.");
+  }).catch(() => {
+    alert("Silakan blok dan copy teks SQL di kotak hitam tersebut.");
+  });
+}
+
+function cekErrorTabelBelumAda(err) {
+  if (!err) return false;
+  const msg = String(err.message || err.details || err.code || "").toLowerCase();
+  return msg.includes("does not exist") || msg.includes("42p01") || msg.includes("pgrst205") || msg.includes("schema cache") || msg.includes("not find the table");
+}
 
 function bukaDbArsipLokal() {
   return new Promise((resolve, reject) => {
@@ -2555,6 +2725,40 @@ async function simpanArsipKeDbLokal(recordArsip) {
   }
 }
 
+async function simpanArsipKeServerSupabase(recordArsip) {
+  try {
+    const payload = {
+      id: recordArsip.id,
+      periode: recordArsip.periode,
+      waktu_backup: recordArsip.waktuBackup || "-",
+      timestamp: recordArsip.timestamp || Date.now(),
+      jml_hari: recordArsip.jmlHari || 31,
+      counts: recordArsip.counts || {
+        l1: (recordArsip.data && recordArsip.data.lembar1) ? recordArsip.data.lembar1.length : 0,
+        l2: (recordArsip.data && recordArsip.data.lembar2) ? recordArsip.data.lembar2.length : 0,
+        l3: (recordArsip.data && recordArsip.data.lembar3) ? recordArsip.data.lembar3.length : 0,
+        inv: (recordArsip.data && recordArsip.data.invoice) ? recordArsip.data.invoice.length : 0
+      },
+      data_json: recordArsip.data || {},
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await db.from(NAMA_TABEL_ARSIP_SUPABASE).upsert(payload, { onConflict: "id" });
+    if (error) {
+      if (cekErrorTabelBelumAda(error)) {
+        const boxSql = document.getElementById("boxInfoSqlArsip");
+        if (boxSql) boxSql.classList.remove("d-none");
+      }
+      return { ok: false, error: error.message };
+    }
+    const boxSql = document.getElementById("boxInfoSqlArsip");
+    if (boxSql) boxSql.classList.add("d-none");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 async function ambilSemuaArsipDariDbLokal() {
   try {
     const dbLokal = await bukaDbArsipLokal();
@@ -2576,25 +2780,64 @@ async function ambilSemuaArsipDariDbLokal() {
 }
 
 async function ambilSatuArsipDariDbLokal(idArsip) {
-  const dbLokal = await bukaDbArsipLokal();
-  return new Promise((resolve, reject) => {
-    const tx = dbLokal.transaction(NAMA_STORE_ARSIP, "readonly");
-    const store = tx.objectStore(NAMA_STORE_ARSIP);
-    const req = store.get(idArsip);
-    req.onsuccess = () => { dbLokal.close(); resolve(req.result || null); };
-    req.onerror = (e) => { dbLokal.close(); reject(e.target.error); };
-  });
+  try {
+    const dbLokal = await bukaDbArsipLokal();
+    return new Promise((resolve, reject) => {
+      const tx = dbLokal.transaction(NAMA_STORE_ARSIP, "readonly");
+      const store = tx.objectStore(NAMA_STORE_ARSIP);
+      const req = store.get(idArsip);
+      req.onsuccess = () => { dbLokal.close(); resolve(req.result || null); };
+      req.onerror = (e) => { dbLokal.close(); reject(e.target.error); };
+    });
+  } catch (err) {
+    return null;
+  }
+}
+
+async function ambilSatuArsipLengkap(idArsip) {
+  const statusEl = document.getElementById("statusModalArsipLama");
+  if (statusEl) statusEl.innerHTML = '<span class="text-primary">⏳ Mengambil data arsip <b>' + idArsip.replace(/_/g, " ") + '</b>...</span>';
+
+  // 1. Cek di Server Supabase terlebih dahulu agar selalu sinkron, atau gunakan cache lokal jika offline
+  try {
+    const { data, error } = await db.from(NAMA_TABEL_ARSIP_SUPABASE).select("*").eq("id", idArsip).maybeSingle();
+    if (!error && data && data.data_json) {
+      const recordServer = {
+        id: data.id,
+        periode: data.periode || data.id,
+        waktuBackup: data.waktu_backup || "-",
+        timestamp: data.timestamp || Date.now(),
+        jmlHari: data.jml_hari || deteksiJumlahHariBulan(data.periode || data.id),
+        counts: data.counts || {},
+        data: data.data_json
+      };
+      await simpanArsipKeDbLokal(recordServer);
+      if (statusEl) statusEl.innerHTML = "";
+      return recordServer;
+    }
+  } catch (e) {
+    console.warn("Mengambil dari cache lokal karena koneksi server gagal:", e);
+  }
+
+  // 2. Fallback ambil dari IndexedDB lokal
+  const lokal = await ambilSatuArsipDariDbLokal(idArsip);
+  if (statusEl) statusEl.innerHTML = "";
+  return lokal;
 }
 
 async function hapusSatuArsipDariDbLokal(idArsip) {
-  const dbLokal = await bukaDbArsipLokal();
-  return new Promise((resolve, reject) => {
-    const tx = dbLokal.transaction(NAMA_STORE_ARSIP, "readwrite");
-    const store = tx.objectStore(NAMA_STORE_ARSIP);
-    store.delete(idArsip);
-    tx.oncomplete = () => { dbLokal.close(); resolve(true); };
-    tx.onerror = (e) => { dbLokal.close(); reject(e.target.error); };
-  });
+  try {
+    const dbLokal = await bukaDbArsipLokal();
+    return new Promise((resolve, reject) => {
+      const tx = dbLokal.transaction(NAMA_STORE_ARSIP, "readwrite");
+      const store = tx.objectStore(NAMA_STORE_ARSIP);
+      store.delete(idArsip);
+      tx.oncomplete = () => { dbLokal.close(); resolve(true); };
+      tx.onerror = (e) => { dbLokal.close(); reject(e.target.error); };
+    });
+  } catch (err) {
+    return false;
+  }
 }
 
 async function bukaModalArsipBulanLama() {
@@ -2607,12 +2850,76 @@ async function bukaModalArsipBulanLama() {
 async function muatDaftarArsipTersimpan() {
   const box = document.getElementById("daftarArsipTersimpanBox");
   if (!box) return;
+  box.innerHTML = '<div class="text-center text-primary py-3 fw-bold">⏳ Memuat daftar arsip dari Server Supabase...</div>';
 
-  const list = await ambilSemuaArsipDariDbLokal();
-  if (list.length === 0) {
+  let listServer = [];
+  let serverTersedia = true;
+
+  try {
+    const { data, error } = await db
+      .from(NAMA_TABEL_ARSIP_SUPABASE)
+      .select("id, periode, waktu_backup, timestamp, jml_hari, counts, updated_at")
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      serverTersedia = false;
+      if (cekErrorTabelBelumAda(error)) {
+        const boxSql = document.getElementById("boxInfoSqlArsip");
+        if (boxSql) boxSql.classList.remove("d-none");
+      }
+    } else {
+      const boxSql = document.getElementById("boxInfoSqlArsip");
+      if (boxSql) boxSql.classList.add("d-none");
+      listServer = (data || []).map(r => ({
+        id: r.id,
+        periode: r.periode || r.id,
+        waktuBackup: r.waktu_backup || "-",
+        timestamp: r.timestamp || 0,
+        jmlHari: r.jml_hari || 31,
+        counts: r.counts || { l1: 0, l2: 0, l3: 0, inv: 0 },
+        diServer: true
+      }));
+    }
+  } catch (err) {
+    serverTersedia = false;
+  }
+
+  const listLokal = await ambilSemuaArsipDariDbLokal();
+  const mapGabungan = new Map();
+
+  listServer.forEach(item => {
+    mapGabungan.set(item.id, { ...item, diServer: true, diLokal: false });
+  });
+
+  listLokal.forEach(item => {
+    if (mapGabungan.has(item.id)) {
+      mapGabungan.get(item.id).diLokal = true;
+    } else {
+      const c = item.counts || {
+        l1: (item.data && item.data.lembar1) ? item.data.lembar1.length : 0,
+        l2: (item.data && item.data.lembar2) ? item.data.lembar2.length : 0,
+        l3: (item.data && item.data.lembar3) ? item.data.lembar3.length : 0,
+        inv: (item.data && item.data.invoice) ? item.data.invoice.length : 0
+      };
+      mapGabungan.set(item.id, {
+        id: item.id,
+        periode: item.periode || item.id,
+        waktuBackup: item.waktuBackup || "-",
+        timestamp: item.timestamp || 0,
+        jmlHari: item.jmlHari || 31,
+        counts: c,
+        diServer: false,
+        diLokal: true
+      });
+    }
+  });
+
+  const listGabungan = Array.from(mapGabungan.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  if (listGabungan.length === 0) {
     box.innerHTML = '<div class="alert alert-secondary mb-0 py-2 text-center small">' +
-      'Belum ada arsip bulan lama yang tersimpan di browser ini.<br>' +
-      'Silakan klik <b>➕ Buat & Simpan Backup Bulan Ini</b> di kanan atas atau pilih file backup (<code>.html</code> / <code>.xlsx</code>) pada kotak nomor 2 di bawah.' +
+      'Belum ada arsip bulan lama yang tersimpan di Server Supabase maupun browser ini.<br>' +
+      'Silakan klik <b>☁️ Simpan Bulan Ini ke Server</b> di kanan atas atau upload file backup lama (<code>.html</code> / <code>.xlsx</code>) pada kotak nomor 2 di bawah.' +
     '</div>';
     return;
   }
@@ -2621,43 +2928,60 @@ async function muatDaftarArsipTersimpan() {
     '<thead class="table-light text-center">' +
       '<tr>' +
         '<th class="text-start">Periode Bulan</th>' +
+        '<th>Lokasi Simpan</th>' +
         '<th>Waktu Backup</th>' +
         '<th>Jumlah Data (L1 / L2 / L3 / Inv)</th>' +
         '<th>Aksi</th>' +
       '</tr>' +
     '</thead><tbody>';
 
-  list.forEach(item => {
-    const c = item.counts || {
-      l1: (item.data && item.data.lembar1) ? item.data.lembar1.length : 0,
-      l2: (item.data && item.data.lembar2) ? item.data.lembar2.length : 0,
-      l3: (item.data && item.data.lembar3) ? item.data.lembar3.length : 0,
-      inv: (item.data && item.data.invoice) ? item.data.invoice.length : 0
-    };
+  listGabungan.forEach(item => {
+    const c = item.counts || { l1: 0, l2: 0, l3: 0, inv: 0 };
     const sedangAktif = modeArsipAktif && infoArsipAktif.periode === item.periode;
     const badgeAktif = sedangAktif ? ' <span class="badge bg-success">Sedang Tampil</span>' : '';
     const idSafe = String(item.id).replace(/'/g, "\\'");
 
+    const badgeLokasi = item.diServer
+      ? '<span class="badge bg-success" title="Tersimpan di Server Supabase (Bisa dibuka dari semua HP/Laptop)">☁️ Server Supabase</span>'
+      : '<span class="badge bg-secondary" title="Hanya tersimpan di browser perangkat ini">💻 Browser Lokal</span> ' +
+        '<button class="btn btn-outline-primary btn-sm py-0 px-1 fw-bold" style="font-size:0.68rem;" onclick="uploadArsipLokalKeServer(\'' + idSafe + '\')">☁️ Upload</button>';
+
     h += '<tr class="' + (sedangAktif ? 'table-warning' : '') + '">' +
       '<td class="fw-bold text-primary">' + String(item.periode).replace(/_/g, ' ') + badgeAktif + '</td>' +
+      '<td class="text-center text-nowrap">' + badgeLokasi + '</td>' +
       '<td class="text-center text-muted">' + (item.waktuBackup || '-') + '</td>' +
       '<td class="text-center">' +
-        '<span class="badge bg-info text-dark me-1">L1: ' + c.l1.toLocaleString("id-ID") + '</span>' +
-        '<span class="badge bg-warning text-dark me-1">L2: ' + c.l2.toLocaleString("id-ID") + '</span>' +
-        '<span class="badge bg-danger me-1">L3: ' + c.l3.toLocaleString("id-ID") + '</span>' +
+        '<span class="badge bg-info text-dark me-1">L1: ' + (c.l1 || 0).toLocaleString("id-ID") + '</span>' +
+        '<span class="badge bg-warning text-dark me-1">L2: ' + (c.l2 || 0).toLocaleString("id-ID") + '</span>' +
+        '<span class="badge bg-danger me-1">L3: ' + (c.l3 || 0).toLocaleString("id-ID") + '</span>' +
         '<span class="badge bg-primary">Inv: ' + (c.inv || 0).toLocaleString("id-ID") + '</span>' +
       '</td>' +
       '<td class="text-center text-nowrap">' +
-        '<button class="btn btn-primary btn-sm fw-bold py-0 px-2 me-1" onclick="aktifkanModeArsipDariDb(\'' + idSafe + '\')">👁️ Tampilkan di Layar</button>' +
+        '<button class="btn btn-primary btn-sm fw-bold py-0 px-2 me-1" onclick="aktifkanModeArsipDariDb(\'' + idSafe + '\')">👁️ Tampilkan</button>' +
         '<button class="btn btn-outline-success btn-sm fw-bold py-0 px-2 me-1" onclick="downloadUlangExcelArsip(\'' + idSafe + '\')" title="Download Excel Multi-Sheet">📥 Excel</button>' +
         '<button class="btn btn-outline-dark btn-sm fw-bold py-0 px-2 me-1" onclick="downloadUlangHtmlArsip(\'' + idSafe + '\')" title="Download File Tampilan HTML Offline">🌐 HTML</button>' +
-        '<button class="btn btn-outline-danger btn-sm fw-bold py-0 px-2" onclick="hapusItemArsipLokal(\'' + idSafe + '\')" title="Hapus dari Daftar Browser">🗑️</button>' +
+        '<button class="btn btn-outline-danger btn-sm fw-bold py-0 px-2" onclick="hapusItemArsipLokal(\'' + idSafe + '\')" title="Hapus Arsip">🗑️</button>' +
       '</td>' +
     '</tr>';
   });
 
   h += '</tbody></table>';
   box.innerHTML = h;
+}
+
+async function uploadArsipLokalKeServer(idArsip) {
+  const statusEl = document.getElementById("statusModalArsipLama");
+  const record = await ambilSatuArsipDariDbLokal(idArsip);
+  if (!record) return alert("Data lokal tidak ditemukan!");
+
+  if (statusEl) statusEl.innerHTML = '<span class="text-primary">⏳ Mengupload arsip <b>' + idArsip.replace(/_/g, " ") + '</b> ke Server Supabase...</span>';
+  const res = await simpanArsipKeServerSupabase(record);
+  if (res.ok) {
+    if (statusEl) statusEl.innerHTML = '<span class="text-success">✅ Arsip <b>' + idArsip.replace(/_/g, " ") + '</b> berhasil disimpan ke Server Supabase!</span>';
+    await muatDaftarArsipTersimpan();
+  } else {
+    if (statusEl) statusEl.innerHTML = '<span class="text-danger">❌ Gagal upload ke Server Supabase: ' + res.error + '</span>';
+  }
 }
 
 function terapkanDataArsipKeLayarUtama(recordArsip) {
@@ -2698,8 +3022,8 @@ function terapkanDataArsipKeLayarUtama(recordArsip) {
 
 async function aktifkanModeArsipDariDb(idArsip) {
   try {
-    const record = await ambilSatuArsipDariDbLokal(idArsip);
-    if (!record) {
+    const record = await ambilSatuArsipLengkap(idArsip);
+    if (!record || !record.data) {
       alert("⚠️ Data arsip tidak ditemukan!");
       return;
     }
@@ -2719,8 +3043,22 @@ function keluarModeArsipBulanLama() {
 }
 
 async function hapusItemArsipLokal(idArsip) {
-  if (!confirm("Hapus arsip periode '" + idArsip.replace(/_/g, " ") + "' dari daftar browser ini?")) return;
+  const savedPin = localStorage.getItem("ulp_saved_pin");
+  if (savedPin !== PIN_SUPER_ADMIN && savedPin !== PIN_ADMIN) {
+    const pinInput = prompt("🔒 Masukkan PIN Admin untuk menghapus arsip '" + idArsip.replace(/_/g, " ") + "':");
+    if (pinInput !== PIN_SUPER_ADMIN && pinInput !== PIN_ADMIN) {
+      if (pinInput !== null) alert("❌ PIN Admin salah! Arsip tidak dihapus.");
+      return;
+    }
+  }
+
+  if (!confirm("⚠️ Yakin ingin menghapus arsip periode '" + idArsip.replace(/_/g, " ") + "' dari Server Supabase & Browser?")) return;
+
+  try {
+    await db.from(NAMA_TABEL_ARSIP_SUPABASE).delete().eq("id", idArsip);
+  } catch (e) {}
   await hapusSatuArsipDariDbLokal(idArsip);
+
   if (modeArsipAktif && infoArsipAktif.periode === idArsip) {
     keluarModeArsipBulanLama();
   }
@@ -2740,10 +3078,10 @@ function unduhFileExcelDariRecordArsip(record) {
   const rekapInv = susunRekapUntukBackup(dInv, 'invoice', jmlHari);
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rekapL1.aoa), "Rekap_Lembar_1");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rekapL2.aoa), "Rekap_Lembar_2");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rekapL3.aoa), "Rekap_Lembar_3");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rekapInv.aoa), "Rekap_Invoice");
+  XLSX.utils.book_append_sheet(wb, rekapL1.wsStyled, "Rekap_Lembar_1");
+  XLSX.utils.book_append_sheet(wb, rekapL2.wsStyled, "Rekap_Lembar_2");
+  XLSX.utils.book_append_sheet(wb, rekapL3.wsStyled, "Rekap_Lembar_3");
+  XLSX.utils.book_append_sheet(wb, rekapInv.wsStyled, "Rekap_Invoice");
   if (dL1.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dL1), "Detail_Plg_L1");
   if (dL2.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dL2), "Detail_Plg_L2");
   if (dL3.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dL3), "Detail_Plg_L3");
@@ -2774,7 +3112,7 @@ function unduhFileHtmlOfflineDariRecordArsip(record) {
     '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">\n' +
     '<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"><\/script>\n' +
-    '<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>\n' +
+    '<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"><\/script>\n' +
     '<style>' + cssStyle + '</style>\n</head>\n<body>\n' +
     '<div class="container-fluid my-3">\n' +
       '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">\n' +
@@ -2894,13 +3232,13 @@ function unduhFileHtmlOfflineDariRecordArsip(record) {
 }
 
 async function downloadUlangExcelArsip(idArsip) {
-  const record = await ambilSatuArsipDariDbLokal(idArsip);
+  const record = await ambilSatuArsipLengkap(idArsip);
   if (!record) return alert("Data arsip tidak ditemukan!");
   unduhFileExcelDariRecordArsip(record);
 }
 
 async function downloadUlangHtmlArsip(idArsip) {
-  const record = await ambilSatuArsipDariDbLokal(idArsip);
+  const record = await ambilSatuArsipLengkap(idArsip);
   if (!record) return alert("Data arsip tidak ditemukan!");
   unduhFileHtmlOfflineDariRecordArsip(record);
 }
@@ -2972,7 +3310,6 @@ async function prosesBukaFileBackupLama() {
         parsedData.lembar3 = dL3;
         parsedData.invoice = dInv;
       } else {
-        // Fallback: Jika user membuka file Excel rincian biasa (1 sheet), otomatis pisahkan berdasarkan kolom lembar & is_invoice
         let semuaBaris = [];
         sheetNames.forEach(sn => {
           if (!/^Rekap_/i.test(sn)) {
@@ -3001,6 +3338,11 @@ async function prosesBukaFileBackupLama() {
       throw new Error("Format file tidak didukung. Pilih file .html atau .xlsx hasil backup.");
     }
 
+    const inputNamaPeriode = prompt("Simpan arsip ini ke Server Supabase dengan nama periode:", labelPeriode.replace(/\s+/g, "_"));
+    if (inputNamaPeriode) {
+      labelPeriode = inputNamaPeriode.trim().replace(/\s+/g, "_");
+    }
+
     const recordArsip = {
       id: labelPeriode,
       periode: labelPeriode,
@@ -3016,29 +3358,35 @@ async function prosesBukaFileBackupLama() {
       data: parsedData
     };
 
+    statusEl.innerHTML = '<span class="text-primary">☁️ Menyimpan arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b> ke Server Supabase...</span>';
     await simpanArsipKeDbLokal(recordArsip);
+    const resServer = await simpanArsipKeServerSupabase(recordArsip);
     await muatDaftarArsipTersimpan();
-    statusEl.innerHTML = '<span class="text-success">✅ Berhasil memuat arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b>! Menampilkan ke layar utama...</span>';
+
+    if (resServer.ok) {
+      statusEl.innerHTML = '<span class="text-success">✅ Berhasil mengupload arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b> ke Server Supabase! Menampilkan ke layar utama...</span>';
+    } else {
+      statusEl.innerHTML = '<span class="text-warning text-dark">⚠️ Arsip disimpan di browser ini (Tabel Supabase belum dibuat: ' + resServer.error + '). Menampilkan ke layar...</span>';
+    }
 
     setTimeout(() => {
       terapkanDataArsipKeLayarUtama(recordArsip);
-    }, 350);
+    }, 500);
 
   } catch (err) {
     statusEl.innerHTML = '<span class="text-danger">❌ Gagal membuka file backup: ' + err.message + '</span>';
   }
 }
 
-async function buatBackupRekapBulanan() {
-  if (window.AppInventor) {
-    alert("Trik Aplikasi: Fitur Backup ini mendownload file Excel & HTML, sehingga hanya bisa dijalankan lewat Web Browser (Chrome/Edge/Safari) di HP atau Laptop.");
-    return false;
+async function buatBackupRekapBulanan(unduhFileKePerangkat = true) {
+  if (unduhFileKePerangkat && window.AppInventor) {
+    unduhFileKePerangkat = false; // Di AppInventor otomatis simpan ke Server Supabase saja agar tidak error download
   }
 
   const skrg = new Date();
   const refDate = skrg.getDate() <= 5 ? new Date(skrg.getFullYear(), skrg.getMonth() - 1, 1) : skrg;
   const defaultPeriode = refDate.toLocaleString("id-ID", { month: "long", year: "numeric" }).replace(/\s+/g, "_");
-  const labelPeriodeInput = prompt("Masukkan Nama Bulan & Tahun untuk File Backup (contoh: Oktober_2026):", defaultPeriode);
+  const labelPeriodeInput = prompt("Masukkan Nama Bulan & Tahun untuk Arsip Backup di Server Supabase (contoh: Oktober_2026):", defaultPeriode);
   if (!labelPeriodeInput) return false;
 
   const labelPeriode = labelPeriodeInput.trim().replace(/\s+/g, "_");
@@ -3053,7 +3401,7 @@ async function buatBackupRekapBulanan() {
     if (updateInfoEl) updateInfoEl.innerHTML = htmlPesan;
   };
 
-  tampilPesan('<span class="text-primary fw-bold">⏳ Mengambil seluruh data Lembar 1, 2, 3, dan Invoice dari Supabase untuk di-backup...</span>');
+  tampilPesan('<span class="text-primary fw-bold">⏳ Mengambil seluruh data Lembar 1, 2, 3, dan Invoice dari Supabase untuk di-arsipkan...</span>');
 
   try {
     const [dataL1, dataL2, dataL3, dataInv] = await Promise.all([
@@ -3086,17 +3434,26 @@ async function buatBackupRekapBulanan() {
       }
     };
 
-    // 1. Simpan otomatis ke Daftar Arsip Lokal Browser (IndexedDB) agar bisa dibuka kapan saja dari menu halaman utama
+    tampilPesan('<span class="text-primary fw-bold">☁️ Menyimpan arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b> ke Tabel Server Supabase & Browser...</span>');
+
+    // 1. Simpan ke IndexedDB Lokal & Server Supabase (arsip_rekap_bulanan)
     await simpanArsipKeDbLokal(recordArsip);
+    const resServer = await simpanArsipKeServerSupabase(recordArsip);
     await muatDaftarArsipTersimpan();
 
-    // 2. Buat & Download File Excel Multi-Sheet (.xlsx)
-    unduhFileExcelDariRecordArsip(recordArsip);
+    // 2. Jika diminta unduh file (.xlsx & .html) ke perangkat
+    if (unduhFileKePerangkat && !window.AppInventor) {
+      unduhFileExcelDariRecordArsip(recordArsip);
+      unduhFileHtmlOfflineDariRecordArsip(recordArsip);
+    }
 
-    // 3. Buat & Download File HTML Offline Interaktif (.html)
-    unduhFileHtmlOfflineDariRecordArsip(recordArsip);
+    let pesanSukses = "";
+    if (resServer.ok) {
+      pesanSukses = '<span class="text-success fw-bold">✅ Arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b> berhasil disimpan ke Server Supabase (Bisa dibuka dari semua HP/Laptop)' + (unduhFileKePerangkat ? ' & didownload ke perangkat!' : '!') + '</span>';
+    } else {
+      pesanSukses = '<span class="text-warning text-dark fw-bold">⚠️ Arsip <b>' + labelPeriode.replace(/_/g, " ") + '</b> disimpan di Browser & File (Untuk simpan ke Server Supabase, jalankan Script SQL pembuatan tabel 1x).</span>';
+    }
 
-    const pesanSukses = '<span class="text-success fw-bold">✅ Backup <b>' + labelPeriode.replace(/_/g, " ") + '</b> berhasil disimpan ke Menu Arsip Halaman Utama & didownload (File HTML + Excel)!</span>';
     if (statusEl) statusEl.innerHTML = pesanSukses;
     if (statusArsipEl) statusArsipEl.innerHTML = pesanSukses;
     if (updateInfoEl) {
@@ -3843,10 +4200,18 @@ function exportExcel() {
 function exportSemuaExcel(k) {
   if (window.AppInventor) { alert("Trik Aplikasi: Fitur Download Excel hanya bisa digunakan lewat Web Browser (Chrome/Safari) agar tidak terjadi Error."); return; }
   const dataToExport = k === "Semua" ? allData : allData.filter(r => r.kode === k);
-  const ws = XLSX.utils.json_to_sheet(dataToExport);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Semua Data");
-  XLSX.writeFile(wb, "Rekap_Semua_" + k + ".xlsx");
+  if (k === "Semua" && typeof susunRekapUntukBackup === "function") {
+    const skrg = new Date();
+    const jmlHari = (typeof JML_HARI_ARSIP !== "undefined") ? JML_HARI_ARSIP : ((typeof modeArsipAktif !== "undefined" && modeArsipAktif) ? (infoArsipAktif.jmlHari || 31) : new Date(skrg.getFullYear(), skrg.getMonth() + 1, 0).getDate());
+    const rekap = susunRekapUntukBackup(dataToExport, currentSheet, jmlHari);
+    if (rekap && rekap.wsStyled) {
+      XLSX.utils.book_append_sheet(wb, rekap.wsStyled, "Tabel_Rekap_" + currentSheet);
+    }
+  }
+  const ws = XLSX.utils.json_to_sheet(dataToExport);
+  XLSX.utils.book_append_sheet(wb, ws, "Rincian_Pelanggan");
+  XLSX.writeFile(wb, "Rekap_Semua_" + currentSheet + "_" + k + ".xlsx");
 }
 
 function siapkanMenuDownload() {
@@ -3943,11 +4308,19 @@ async function eksekusiDownloadKhusus() {
     return;
   }
   
-  const ws = XLSX.utils.json_to_sheet(filteredData);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  if (sumber === "rekap_berwarna") {
+    const skrg = new Date();
+    const jmlHari = modeArsipAktif ? (infoArsipAktif.jmlHari || 31) : new Date(skrg.getFullYear(), skrg.getMonth() + 1, 0).getDate();
+    const hasilRekap = susunRekapUntukBackup(filteredData, currentSheet, jmlHari);
+    XLSX.utils.book_append_sheet(wb, hasilRekap.wsStyled, "Rekap_" + currentSheet);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredData), "Rincian_Pelanggan");
+  } else {
+    const ws = XLSX.utils.json_to_sheet(filteredData);
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+  }
   
-  let namaFile = sumber === "master" ? "Master_Pelanggan" : "Data_" + currentSheet;
+  let namaFile = sumber === "master" ? "Master_Pelanggan" : (sumber === "rekap_berwarna" ? "Rekap_Berwarna_" + currentSheet : "Data_" + currentSheet);
   if (sumber === "tunggakan_server") namaFile += "_FULL_SERVER";
   if (jenisLayanan === "pra") namaFile += "_Prabayar";
   if (jenisLayanan === "pasca") namaFile += "_Pascabayar";
