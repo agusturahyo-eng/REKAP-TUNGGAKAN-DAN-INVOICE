@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 body { background: #f0f4f8; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1e293b; }
 .clickable { cursor: pointer; user-select: none; transition: background-color 0.15s; }
@@ -103,6 +104,10 @@ tr.clickable:hover td { filter: brightness(0.92); }
       <li class="nav-item"><a class="nav-link" id="tab-invoice" onclick="loadSheet('invoice')">Invoice</a></li>
     </ul>
     <div class="d-flex gap-2 flex-wrap">
+      <!-- Tombol Copy / Share Gambar Rekap Full 1 Halaman -->
+      <button id="btnCopyGambarRekap" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="copyAtauShareGambarRekapFull()" title="Copy / Simpan Gambar Tabel Rekap Utuh 1 Halaman untuk Dishare ke WA">
+        📸 Copy Gambar Rekap
+      </button>
       <!-- Tombol Cari IDPEL (Bebas Akses) -->
       <button class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#cariIdpelModal" onclick="bukaModalCariIdpel()">
         🔍 Cari IDPEL
@@ -720,15 +725,29 @@ END $ inject $;</pre>
 
 <!-- ================= MODAL PREVIEW GAMBAR ================= -->
 <div class="modal fade" id="previewGambarModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header bg-warning text-dark py-2">
-        <h6 class="modal-title fw-bold">📸 Preview Gambar (Silakan Screenshot)</h6>
+        <h6 class="modal-title fw-bold" id="judulPreviewGambarModal">📸 Preview Gambar Rekap Full</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body text-center p-1 bg-light">
-        <img id="imgPreview" src="" class="img-fluid border shadow-sm" alt="Preview Gambar">
-        <div class="mt-2 text-dark small fw-bold">💡 Tips: Gunakan fitur Screenshot di HP Anda untuk menyimpan & membagikan gambar ini.</div>
+      <div class="modal-body text-center p-2 bg-light">
+        <div id="statusCopyGambarModal" class="mb-2"></div>
+        <div class="d-flex justify-content-center gap-2 flex-wrap mb-2" id="aksiPreviewGambarBox">
+          <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="salinUlangGambarDariModal()">
+            📋 Copy Gambar (Paste di WA)
+          </button>
+          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="bagikanGambarDariModal()">
+            📤 Share Langsung (HP)
+          </button>
+          <button type="button" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="unduhGambarDariModal()">
+            💾 Download File PNG/JPG
+          </button>
+        </div>
+        <div style="max-height: 70vh; overflow: auto;" class="border bg-white p-1 rounded shadow-sm">
+          <img id="imgPreview" src="" class="img-fluid" alt="Preview Gambar">
+        </div>
+        <div class="mt-2 text-dark small fw-bold">💡 Tips: Di Laptop/PC tinggal tekan <b>Ctrl+V (Paste)</b> di grup WhatsApp. Di HP bisa klik <b>Share Langsung</b> atau tekan tahan gambar di atas lalu pilih <b>Bagikan / Salin Gambar</b>.</div>
       </div>
     </div>
   </div>
@@ -3215,7 +3234,7 @@ function unduhFileHtmlOfflineDariRecordArsip(record) {
           '<li class="nav-item"><a class="nav-link" id="tab-invoice" onclick="loadSheet(\'invoice\')">Invoice</a></li>\n' +
         '</ul>\n' +
         '<div class="d-flex gap-2 align-items-center flex-wrap">\n' +
-          '<button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="exportSemuaExcel(currentPetugas)">📥 Download Excel Tab Ini</button>\n' +
+          '<button id="btnCopyGambarRekap" class="btn btn-warning btn-sm fw-bold shadow-sm text-dark" onclick="copyAtauShareGambarRekapFull()">📸 Copy Gambar Rekap</button> <button class="btn btn-success btn-sm fw-bold shadow-sm" onclick="exportSemuaExcel(currentPetugas)">📥 Download Excel Tab Ini</button>\n' +
           '<span class="badge bg-dark py-2 px-3">📦 ARSIP OFFLINE: ' + labelPeriode.replace(/_/g, " ").toUpperCase() + '</span>\n' +
         '</div>\n' +
       '</div>\n' +
@@ -4984,6 +5003,228 @@ function createImage(r) {
   }
 }
 
+
+// ============================================================================
+// FITUR COPY / SHARE GAMBAR REKAP FULL 1 HALAMAN (UTUH TANPA TERPOTONG SCROLL)
+// ============================================================================
+let lastGeneratedBlobRekap = null;
+let lastGeneratedDataUrlRekap = "";
+let lastGeneratedFileNameRekap = "Rekap_ULP_Tulung.png";
+
+async function buatCanvasRekapFullSatuHalaman() {
+  // Buat container bayangan di luar layar yang melebarkan seluruh tabel & kartu ringkasan tanpa batas scroll
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-99999px";
+  wrapper.style.top = "0";
+  wrapper.style.background = "#f0f4f8";
+  wrapper.style.padding = "18px 20px";
+  wrapper.style.fontFamily = "'Segoe UI', system-ui, -apple-system, sans-serif";
+  wrapper.style.color = "#1e293b";
+  wrapper.style.zIndex = "-1";
+
+  const labelTab = currentSheet === 'lembar1' ? 'LEMBAR 1' : currentSheet === 'lembar2' ? 'LEMBAR 2' : currentSheet === 'lembar3' ? 'LEMBAR 3' : 'INVOICE';
+  const infoUpdateText = document.getElementById("updateInfo") ? document.getElementById("updateInfo").innerHTML : "";
+  const subJudulMode = (typeof modeArsipAktif !== "undefined" && modeArsipAktif)
+    ? '<span style="background:#212529;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;margin-right:6px;">ARSIP: ' + infoArsipAktif.periode.replace(/_/g, ' ').toUpperCase() + '</span>'
+    : '';
+
+  // Header Judul Gambar
+  const headerDiv = document.createElement("div");
+  headerDiv.style.textAlign = "center";
+  headerDiv.style.marginBottom = "12px";
+  headerDiv.innerHTML =
+    '<div style="font-size:20px;font-weight:800;color:#0052cc;letter-spacing:0.3px;">⚡ REKAP TUNGGAKAN & INVOICE ULP TULUNG — TAB ' + labelTab + '</div>' +
+    '<div style="display:inline-block;margin-top:5px;padding:4px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:20px;font-size:12px;color:#475569;">' +
+      subJudulMode + infoUpdateText +
+    '</div>';
+  wrapper.appendChild(headerDiv);
+
+  // Clone Summary Cards (Dibuat 4 kolom sejajar rapi)
+  const summaryOrig = document.getElementById("summaryArea");
+  if (summaryOrig && summaryOrig.innerHTML.trim() !== "") {
+    const sumClone = summaryOrig.cloneNode(true);
+    sumClone.style.display = "flex";
+    sumClone.style.flexWrap = "nowrap";
+    sumClone.style.gap = "10px";
+    sumClone.style.marginBottom = "12px";
+    sumClone.className = "";
+    Array.from(sumClone.children).forEach(col => {
+      col.className = "";
+      col.style.flex = "1 1 0";
+      col.style.minWidth = "200px";
+    });
+    wrapper.appendChild(sumClone);
+  }
+
+  // Clone Area Tabel Utama dan lepas semua batasan scroll (max-height / overflow / sticky)
+  const viewOrig = document.getElementById("viewAreaLayar");
+  const viewClone = viewOrig.cloneNode(true);
+
+  // Sembunyikan input pencarian atau tombol aksi yang tidak perlu ikut difoto
+  viewClone.querySelectorAll("button, input, select, a.btn").forEach(el => {
+    el.style.display = "none";
+  });
+
+  viewClone.querySelectorAll(".rekap-container, .table-responsive").forEach(el => {
+    el.style.maxHeight = "none";
+    el.style.overflow = "visible";
+    el.style.boxShadow = "none";
+  });
+
+  viewClone.querySelectorAll(".freeze-col, thead").forEach(el => {
+    el.style.position = "static";
+    el.style.boxShadow = "none";
+  });
+
+  const tbl = viewClone.querySelector("table");
+  if (tbl) {
+    tbl.style.width = "100%";
+    tbl.style.marginBottom = "0";
+  }
+
+  wrapper.appendChild(viewClone);
+  document.body.appendChild(wrapper);
+
+  // Hitung lebar alami tabel supaya seluruh kolom tanggal (1 s/d 31) muat 100% tanpa terpotong
+  const naturalTableWidth = tbl ? Math.max(tbl.scrollWidth + 44, 1180) : 1180;
+  wrapper.style.width = naturalTableWidth + "px";
+
+  await new Promise(r => setTimeout(r, 60));
+
+  try {
+    const canvas = await html2canvas(wrapper, {
+      scale: 2,
+      backgroundColor: "#f0f4f8",
+      useCORS: true,
+      logging: false,
+      width: wrapper.scrollWidth,
+      height: wrapper.scrollHeight,
+      windowWidth: wrapper.scrollWidth + 50,
+      windowHeight: wrapper.scrollHeight + 50
+    });
+    return canvas;
+  } finally {
+    if (wrapper && wrapper.parentNode) {
+      wrapper.parentNode.removeChild(wrapper);
+    }
+  }
+}
+
+async function copyAtauShareGambarRekapFull() {
+  const btn = document.getElementById("btnCopyGambarRekap");
+  const teksAsli = btn ? btn.innerHTML : "📸 Copy Gambar Rekap";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ Memotret Full 1 Halaman...";
+  }
+
+  try {
+    const canvas = await buatCanvasRekapFullSatuHalaman();
+    const tglStr = new Date().toLocaleDateString("id-ID").replace(/\//g, "-");
+    lastGeneratedFileNameRekap = "Rekap_" + currentSheet.toUpperCase() + "_ULP_Tulung_" + tglStr + ".png";
+    lastGeneratedDataUrlRekap = canvas.toDataURL("image/png");
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png", 1.0));
+    lastGeneratedBlobRekap = blob;
+
+    // Coba langsung Copy ke Clipboard (Sangat praktis di PC/Laptop & Chrome Android modern)
+    let berhasilCopyClipboard = false;
+    if (navigator.clipboard && window.ClipboardItem && blob) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        berhasilCopyClipboard = true;
+      } catch (clipErr) {
+        console.warn("Clipboard write otomatis gagal, membuka modal preview:", clipErr);
+      }
+    }
+
+    // Tampilkan di Modal Preview agar user bisa lihat hasilnya, atau klik Share / Download
+    const imgEl = document.getElementById("imgPreview");
+    if (imgEl) imgEl.src = lastGeneratedDataUrlRekap;
+
+    const judulModal = document.getElementById("judulPreviewGambarModal");
+    if (judulModal) judulModal.innerText = "📸 Gambar Rekap Utuh 1 Halaman (" + currentSheet.toUpperCase() + ")";
+
+    const boxAksi = document.getElementById("aksiPreviewGambarBox");
+    if (boxAksi) boxAksi.classList.remove("d-none");
+
+    const statusModal = document.getElementById("statusCopyGambarModal");
+    if (statusModal) {
+      if (berhasilCopyClipboard) {
+        statusModal.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0 small fw-bold">✅ Gambar Rekap Full 1 Halaman SUDAH TER-COPY ke Clipboard! Silakan langsung tekan <b>Ctrl + V (Paste)</b> di WhatsApp, atau gunakan tombol di bawah.</div>';
+      } else {
+        statusModal.innerHTML = '<div class="alert alert-info py-1 px-2 mb-0 small fw-bold">📸 Gambar Rekap Full 1 Halaman siap! Klik <b>Copy Gambar</b>, <b>Share Langsung</b>, atau <b>Download</b> di bawah.</div>';
+      }
+    }
+
+    const modalEl = new bootstrap.Modal(document.getElementById("previewGambarModal"));
+    modalEl.show();
+
+  } catch (err) {
+    alert("❌ Gagal membuat gambar rekap: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = teksAsli;
+    }
+  }
+}
+
+async function salinUlangGambarDariModal() {
+  const statusModal = document.getElementById("statusCopyGambarModal");
+  if (!lastGeneratedBlobRekap) return;
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": lastGeneratedBlobRekap })]);
+      if (statusModal) {
+        statusModal.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0 small fw-bold">✅ Berhasil di-Copy! Sekarang tinggal <b>Paste (Ctrl+V / Tempel)</b> di chat WhatsApp.</div>';
+      }
+    } else {
+      throw new Error("Browser ini tidak mendukung Copy Gambar langsung. Silakan klik tombol Share atau Download.");
+    }
+  } catch (err) {
+    if (statusModal) {
+      statusModal.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small fw-bold">⚠️ ' + err.message + ' (Atau tekan tahan gambar di bawah lalu pilih Salin/Bagikan).</div>';
+    }
+  }
+}
+
+async function bagikanGambarDariModal() {
+  if (!lastGeneratedBlobRekap) return;
+  const file = new File([lastGeneratedBlobRekap], lastGeneratedFileNameRekap, { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Rekap Tunggakan & Invoice ULP Tulung",
+        text: "Rekap " + currentSheet.toUpperCase() + " ULP Tulung"
+      });
+      return;
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        unduhGambarDariModal();
+      }
+    }
+  } else {
+    unduhGambarDariModal();
+  }
+}
+
+function unduhGambarDariModal() {
+  if (!lastGeneratedDataUrlRekap) return;
+  if (window.AppInventor) {
+    alert("💡 Di aplikasi HP: Silakan tekan & tahan gambar di bawah, atau gunakan Screenshot untuk membagikan.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.download = lastGeneratedFileNameRekap;
+  link.href = lastGeneratedDataUrlRekap;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 loadSheet(new Date().getDate() >= 21 ? "lembar1" : "lembar2");
 </script>
 
@@ -5001,3 +5242,4 @@ document.addEventListener('click', function(e) {
 
 </body>
 </html>
+
