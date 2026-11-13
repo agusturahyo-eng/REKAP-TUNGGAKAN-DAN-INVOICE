@@ -414,35 +414,66 @@ END $ inject $;</pre>
             <label class="form-label fw-bold mb-1">1. Pilih Petugas yang Akan Dicetak:</label>
             <div class="d-flex gap-2 align-items-center">
               <select id="selectPetugasCetakF4" class="form-select form-select-sm fw-bold text-primary" onchange="gantiPetugasDiModalCetak()">
-                <option value="Semua">Semua Petugas</option>
+                <option value="">-- Pilih Petugas Terlebih Dahulu --</option>
+                <option value="Semua">Semua Petugas (Tanpa Ubah Settingan Per Petugas)</option>
               </select>
               <span class="badge bg-danger text-nowrap py-2 px-2" id="badgeJmlCetak">0 Plg (0 Lbr F4)</span>
             </div>
           </div>
 
-          <div id="boxOpsiSumberInvoice" class="p-2 border border-primary rounded bg-light mb-3">
-            <div class="mb-2">
-              <label class="form-label fw-bold text-primary mb-1">2. Pilihan Data Invoice yang Dicetak:</label>
-              <select id="selectSumberInvoiceCetak" class="form-select form-select-sm fw-semibold" onchange="terapkanPerubahanOpsiDariModalCetak()">
-                <option value="invoice_saja">Hanya Berdasarkan Invoice Bulan Lalu (+ Nunggak 2 & 3)</option>
-                <option value="tambah_nunggak_21">Invoice Lalu (+ Nunggak 2 & 3) + Nunggak L1 Lalu (Hanya Lunas Tgl 21 Saja)</option>
-                <option value="tambah_nunggak">Invoice Lalu (+ Nunggak 2 & 3) + Semua Nunggak L1 Lalu (Tgl 21-31)</option>
-              </select>
-            </div>
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-              <label class="fw-bold mb-0 text-dark">3. Sortir Tgl Berangkat & Batas L1:</label>
-              <div class="d-flex align-items-center gap-2">
-                <div class="d-flex align-items-center gap-1">
-                  <span class="text-muted">Berangkat Tgl:</span>
-                  <input type="number" id="inputTglBerangkatCetak" class="form-control form-control-sm text-center fw-bold" style="width:55px;" min="1" max="31" value="15" onchange="terapkanPerubahanOpsiDariModalCetak()">
-                </div>
-                <div class="d-flex align-items-center gap-1" title="Isi 21 jika hanya ingin L1 yang lunas tgl 21 saja, atau 31 untuk semua">
-                  <span class="text-primary fw-semibold">L1 s/d Tgl:</span>
-                  <input type="number" id="inputBatasTglL1Cetak" class="form-control form-control-sm text-center fw-bold border-primary" style="width:55px;" min="21" max="31" value="31" onchange="sinkronDropdownSumberDariBatasL1(); terapkanPerubahanOpsiDariModalCetak()">
+          <div id="infoLockOpsiCetak" class="alert alert-warning py-2 px-2 small mb-2 fw-semibold">
+            🔒 <b>Aman dari Salah Ubah:</b> Pengaturan nomor 2 & 3 di bawah ini sengaja dikunci saat belum memilih petugas (atau saat memilih <b>Semua Petugas</b>) agar tidak tidak sengaja merombak settingan seluruh petugas. Pilih <b>1 petugas spesifik</b> di atas jika ingin mengubah settingannya.
+          </div>
+
+          <div id="boxOpsiSumberInvoice" class="p-2 border border-primary rounded bg-light mb-2">
+            <fieldset id="fieldsetOpsiPetugasCetak" disabled>
+              <div class="mb-2">
+                <label class="form-label fw-bold text-primary mb-1">2. Pilihan Data Invoice yang Dicetak (Khusus Petugas Terpilih):</label>
+                <select id="selectSumberInvoiceCetak" class="form-select form-select-sm fw-semibold" onchange="terapkanPerubahanOpsiDariModalCetak()">
+                  <option value="invoice_saja">Hanya Berdasarkan Invoice Bulan Lalu (+ Nunggak 2 & 3)</option>
+                  <option value="tambah_nunggak_21">Invoice Lalu (+ Nunggak 2 & 3) + Nunggak L1 Lalu (Hanya Lunas Tgl 21 Saja)</option>
+                  <option value="tambah_nunggak">Invoice Lalu (+ Nunggak 2 & 3) + Semua Nunggak L1 Lalu (Tgl 21-31)</option>
+                </select>
+              </div>
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                <label class="fw-bold mb-0 text-dark">3. Sortir Tgl Berangkat & Batas L1:</label>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted">Berangkat Tgl:</span>
+                    <input type="number" id="inputTglBerangkatCetak" class="form-control form-control-sm text-center fw-bold" style="width:55px;" min="1" max="31" value="15" onchange="terapkanPerubahanOpsiDariModalCetak()">
+                  </div>
+                  <div class="d-flex align-items-center gap-1" title="Isi 21 jika hanya ingin L1 yang lunas tgl 21 saja, atau 31 untuk semua">
+                    <span class="text-primary fw-semibold">L1 s/d Tgl:</span>
+                    <input type="number" id="inputBatasTglL1Cetak" class="form-control form-control-sm text-center fw-bold border-primary" style="width:55px;" min="21" max="31" value="31" onchange="sinkronDropdownSumberDariBatasL1(); terapkanPerubahanOpsiDariModalCetak()">
+                  </div>
                 </div>
               </div>
-            </div>
+            </fieldset>
             <div id="statusSortirCetak" class="mt-1 fw-bold text-center"></div>
+          </div>
+
+          <!-- 4. FILTER HARI BACA (KARAKTER KE-7 KOKED / RBM) -->
+          <div id="boxFilterHariBacaCetak" class="p-2 border border-info rounded bg-white mb-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+              <label class="form-label fw-bold text-dark mb-0">4. Filter Hari Baca (Huruf ke-7 RBM/Koked):</label>
+              <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="radioModeHariBaca" id="modeHbSemua" value="semua" checked onchange="ubahModeHariBacaCetak()">
+                <label class="btn btn-outline-primary py-0 px-2 fw-bold" for="modeHbSemua" style="font-size:0.72rem;">Semua Hari Baca</label>
+
+                <input type="radio" class="btn-check" name="radioModeHariBaca" id="modeHbPilih" value="pilih" onchange="ubahModeHariBacaCetak()">
+                <label class="btn btn-outline-primary py-0 px-2 fw-bold" for="modeHbPilih" style="font-size:0.72rem;">Pilih / Centang Hari Baca</label>
+              </div>
+            </div>
+            <div id="areaCentangHariBaca" class="d-none mt-2 pt-2 border-top">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-muted" style="font-size:0.72rem;">Centang Hari Baca yang akan dicetak (contoh: <code>HBAJCA<b>A</b>...</code> = <b>A/1</b>):</span>
+                <div class="d-flex gap-1">
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fw-bold" style="font-size:0.68rem;" onclick="setCentangSemuaHariBaca(true)">Centang Semua</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 fw-bold" style="font-size:0.68rem;" onclick="setCentangSemuaHariBaca(false)">Kosongkan</button>
+                </div>
+              </div>
+              <div id="listCheckboxHariBaca" class="d-flex flex-wrap gap-1"></div>
+            </div>
           </div>
         </div>
 
@@ -3774,6 +3805,93 @@ function bukaModalCetakF4DariAdmin() {
   bukaModalCetakF4('Semua');
 }
 
+function ekstrakInfoHariBaca(koked) {
+  const s = String(koked || "").trim().toUpperCase();
+  if (s.length >= 7) {
+    const ch = s.charAt(6);
+    if (ch >= 'A' && ch <= 'Z') {
+      const num = ch.charCodeAt(0) - 64;
+      return { key: ch, label: ch + "/" + num, sortOrder: num };
+    }
+    if (ch >= '1' && ch <= '9') {
+      const num = parseInt(ch, 10);
+      const huruf = String.fromCharCode(64 + num);
+      return { key: ch, label: huruf + "/" + num, sortOrder: num };
+    }
+    return { key: ch, label: "Hari " + ch, sortOrder: 100 + ch.charCodeAt(0) };
+  }
+  return { key: "LAINNYA", label: "Tanpa RBM", sortOrder: 999 };
+}
+
+function renderDaftarCheckboxHariBaca(kodePetugas) {
+  const listEl = document.getElementById("listCheckboxHariBaca");
+  if (!listEl) return;
+
+  if (!kodePetugas) {
+    listEl.innerHTML = '<span class="text-muted small">Pilih petugas terlebih dahulu untuk melihat daftar Hari Baca.</span>';
+    return;
+  }
+
+  const dataPetugas = allData.filter(r => (kodePetugas === "Semua" ? true : r.kode === kodePetugas) && !getStatusLunas(r).isLunas);
+
+  const mapHb = {};
+  dataPetugas.forEach(r => {
+    const info = ekstrakInfoHariBaca(r.koked);
+    if (!mapHb[info.key]) {
+      mapHb[info.key] = { ...info, count: 0 };
+    }
+    mapHb[info.key].count++;
+  });
+
+  const sortedKeys = Object.values(mapHb).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (sortedKeys.length === 0) {
+    listEl.innerHTML = '<span class="text-muted small">Tidak ada pelanggan belum lunas untuk petugas ini.</span>';
+    return;
+  }
+
+  let html = "";
+  sortedKeys.forEach(item => {
+    const idChk = "chkHb_" + item.key;
+    html +=
+      '<div class="form-check form-check-inline m-0 p-1 px-2 border rounded bg-light d-flex align-items-center gap-1">' +
+        '<input class="form-check-input m-0 chk-hari-baca" type="checkbox" id="' + idChk + '" value="' + item.key + '" checked onchange="perbaruiInfoJumlahCetakF4()">' +
+        '<label class="form-check-label fw-bold text-dark" for="' + idChk + '" style="font-size:0.75rem; cursor:pointer;">' +
+          item.label + ' <span class="badge bg-secondary">' + item.count + '</span>' +
+        '</label>' +
+      '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function ubahModeHariBacaCetak() {
+  const isPilih = document.getElementById("modeHbPilih") && document.getElementById("modeHbPilih").checked;
+  const area = document.getElementById("areaCentangHariBaca");
+  if (area) {
+    area.classList.toggle("d-none", !isPilih);
+  }
+  perbaruiInfoJumlahCetakF4();
+}
+
+function setCentangSemuaHariBaca(statusCentang) {
+  document.querySelectorAll(".chk-hari-baca").forEach(chk => {
+    chk.checked = statusCentang;
+  });
+  perbaruiInfoJumlahCetakF4();
+}
+
+function filterDataSesuaiHariBaca(dataRows) {
+  const modePilih = document.getElementById("modeHbPilih") && document.getElementById("modeHbPilih").checked;
+  if (!modePilih) return dataRows;
+
+  const checkedSet = new Set();
+  document.querySelectorAll(".chk-hari-baca:checked").forEach(chk => {
+    checkedSet.add(chk.value);
+  });
+
+  return dataRows.filter(r => checkedSet.has(ekstrakInfoHariBaca(r.koked).key));
+}
+
 async function bukaModalCetakF4(kodePetugas) {
   document.getElementById("statusSortirCetak").innerHTML = "";
   document.getElementById("modeCetakPetugas").checked = true;
@@ -3789,12 +3907,20 @@ async function bukaModalCetakF4(kodePetugas) {
   }
 
   const selPetugas = document.getElementById("selectPetugasCetakF4");
-  let optHtml = '<option value="Semua">Semua Petugas</option>';
+  let optHtml = '<option value="">-- Pilih Petugas Terlebih Dahulu --</option>';
+  optHtml += '<option value="Semua">Semua Petugas (Tanpa Ubah Settingan Per Petugas)</option>';
   daftarMasterPetugas.forEach(p => {
     optHtml += '<option value="' + p.kode + '">' + p.kode.toUpperCase() + ' - ' + p.nama_petugas + '</option>';
   });
   selPetugas.innerHTML = optHtml;
-  selPetugas.value = kodePetugas || "Semua";
+  // Jika dipanggil dari tombol utama ('Semua'), arahkan ke '' (-- Pilih Petugas Terlebih Dahulu --) agar aman tidak langsung di "Semua"
+  selPetugas.value = (kodePetugas && kodePetugas !== "Semua") ? kodePetugas : "";
+
+  if (document.getElementById("modeHbSemua")) {
+    document.getElementById("modeHbSemua").checked = true;
+  }
+  const areaHb = document.getElementById("areaCentangHariBaca");
+  if (areaHb) areaHb.classList.add("d-none");
 
   if (currentSheet !== 'invoice') {
     allData = await ambilDataSheetDariSupabase('invoice');
@@ -3810,7 +3936,15 @@ async function gantiPetugasDiModalCetak() {
   const kode = document.getElementById("selectPetugasCetakF4").value;
   document.getElementById("statusSortirCetak").innerHTML = "";
 
-  if (kode !== "Semua") {
+  const fieldsetEl = document.getElementById("fieldsetOpsiPetugasCetak");
+  const infoLockEl = document.getElementById("infoLockOpsiCetak");
+  const boxOpsiEl = document.getElementById("boxOpsiSumberInvoice");
+
+  if (kode && kode !== "Semua") {
+    if (fieldsetEl) fieldsetEl.disabled = false;
+    if (infoLockEl) infoLockEl.classList.add("d-none");
+    if (boxOpsiEl) boxOpsiEl.classList.remove("opacity-50");
+
     const { data } = await db.from('master_petugas').select('*').ilike('kode', kode).maybeSingle();
     if (data) {
       const batasL1 = data.batas_tgl_l1_invoice || 31;
@@ -3827,9 +3961,14 @@ async function gantiPetugasDiModalCetak() {
     const tersimpanAdmin = getBiayaAdminPetugas(kode);
     pilihCepatAdmin(tersimpanAdmin);
   } else {
+    // Kunci pengaturan 2 & 3 saat belum pilih petugas atau saat pilih Semua Petugas
+    if (fieldsetEl) fieldsetEl.disabled = true;
+    if (infoLockEl) infoLockEl.classList.remove("d-none");
+    if (boxOpsiEl) boxOpsiEl.classList.add("opacity-50");
     pilihCepatAdmin(0);
   }
 
+  renderDaftarCheckboxHariBaca(kode);
   perbaruiInfoJumlahCetakF4(kode);
 }
 
@@ -3842,8 +3981,14 @@ function sinkronDropdownSumberDariBatasL1() {
 }
 
 function perbaruiInfoJumlahCetakF4(kodePetugas) {
-  const dataBelum = allData.filter(r => (kodePetugas === "Semua" ? true : r.kode === kodePetugas) && !getStatusLunas(r).isLunas);
-  document.getElementById("badgeJmlCetak").innerText = dataBelum.length + " Plg (" + Math.ceil(dataBelum.length / 4) + " Lbr F4)";
+  const kode = (kodePetugas !== undefined) ? kodePetugas : document.getElementById("selectPetugasCetakF4").value;
+  if (!kode) {
+    document.getElementById("badgeJmlCetak").innerText = "0 Plg (0 Lbr F4)";
+    return;
+  }
+  const dataBelum = allData.filter(r => (kode === "Semua" ? true : r.kode === kode) && !getStatusLunas(r).isLunas);
+  const dataTersaring = filterDataSesuaiHariBaca(dataBelum);
+  document.getElementById("badgeJmlCetak").innerText = dataTersaring.length + " Plg (" + Math.ceil(dataTersaring.length / 4) + " Lbr F4)";
 }
 
 function pilihCepatAdmin(nominal) {
@@ -3919,31 +4064,27 @@ async function terapkanPerubahanOpsiDariModalCetak() {
   statusEl.innerHTML = '<span class="text-primary">⏳ Menyortir ulang data Invoice sesuai pilihan...</span>';
   btnDownload.disabled = true;
 
+  if (!kode || kode === "Semua") {
+    statusEl.innerHTML = '<span class="text-danger">⚠️ Pilih 1 petugas spesifik terlebih dahulu untuk mengubah opsi sortir Invoice!</span>';
+    btnDownload.disabled = false;
+    return;
+  }
+
   try {
-    if (kode === "Semua") {
-      for (const p of daftarMasterPetugas) {
-        await db.rpc('setel_invoice_petugas', {
-          p_kode_petugas: p.kode,
-          p_tambah_tunggakan: tambahNunggak,
-          p_tgl_berangkat: tglBerangkat,
-          p_batas_tgl_l1: batasTglL1
-        });
-      }
-    } else {
-      const { error } = await db.rpc('setel_invoice_petugas', {
-        p_kode_petugas: kode,
-        p_tambah_tunggakan: tambahNunggak,
-        p_tgl_berangkat: tglBerangkat,
-        p_batas_tgl_l1: batasTglL1
-      });
-      if (error) throw error;
-    }
+    const { error } = await db.rpc('setel_invoice_petugas', {
+      p_kode_petugas: kode,
+      p_tambah_tunggakan: tambahNunggak,
+      p_tgl_berangkat: tglBerangkat,
+      p_batas_tgl_l1: batasTglL1
+    });
+    if (error) throw error;
 
     allData = await ambilDataSheetDariSupabase('invoice', true);
+    renderDaftarCheckboxHariBaca(kode);
     perbaruiInfoJumlahCetakF4(kode);
     if (currentSheet === 'invoice') renderPetugas();
 
-    statusEl.innerHTML = '<span class="text-success">✅ Daftar siap cetak berhasil diperbarui!</span>';
+    statusEl.innerHTML = '<span class="text-success">✅ Daftar siap cetak petugas ' + kode.toUpperCase() + ' berhasil diperbarui!</span>';
   } catch (err) {
     statusEl.innerHTML = '<span class="text-danger">❌ Gagal menyortir: ' + err.message + '</span>';
   } finally {
@@ -4009,10 +4150,23 @@ async function eksekusiCetakF4() {
       btnDownload.innerText = "📥 Download PDF Siap Cetak (Ukuran F4 - 4 Invoice/Lembar)";
     }
   } else {
-    listCetak = allData.filter(r => (kode === "Semua" ? true : r.kode === kode) && !getStatusLunas(r).isLunas);
-    if (listCetak.length === 0) {
-      alert("Belum ada pelanggan BELUM LUNAS di daftar Invoice untuk dicetak!");
+    if (!kode) {
+      alert("⚠️ Silakan pilih Petugas yang akan dicetak terlebih dahulu pada kolom Nomor 1!");
       return;
+    }
+    const rawBelum = allData.filter(r => (kode === "Semua" ? true : r.kode === kode) && !getStatusLunas(r).isLunas);
+    listCetak = filterDataSesuaiHariBaca(rawBelum);
+    if (listCetak.length === 0) {
+      alert("⚠️ Tidak ada pelanggan BELUM LUNAS yang sesuai dengan pilihan Petugas / Hari Baca yang dicentang!");
+      return;
+    }
+    const modePilihHb = document.getElementById("modeHbPilih") && document.getElementById("modeHbPilih").checked;
+    if (modePilihHb) {
+      const hbTerpilih = [];
+      document.querySelectorAll(".chk-hari-baca:checked").forEach(chk => hbTerpilih.push(chk.value));
+      if (hbTerpilih.length > 0) {
+        labelFile = kode + "_HariBaca-" + hbTerpilih.join("");
+      }
     }
   }
 
