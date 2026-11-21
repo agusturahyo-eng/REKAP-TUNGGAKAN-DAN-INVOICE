@@ -1760,7 +1760,8 @@ async function prosesPelunasanHarian() {
 }
 
 async function prosesBatalLunas() {
-  const idpels = ekstrakDaftarIdpel(document.getElementById("textIdpelBatalLunas").value);
+  const rawIdpels = ekstrakDaftarIdpel(document.getElementById("textIdpelBatalLunas").value);
+  const idpels = Array.from(new Set(rawIdpels));
   const statusEl = document.getElementById("statusProsesModal");
 
   if (idpels.length === 0) {
@@ -1768,15 +1769,21 @@ async function prosesBatalLunas() {
     return;
   }
 
-  statusEl.innerHTML = '<span class="text-primary">⏳ Membatalkan pelunasan ' + idpels.length + ' pelanggan...</span>';
-  
   try {
-    const { error } = await db.from('data_tunggakan')
-                              .update({ tgl_lunas: null }) 
-                              .in('idpel', idpels);
-    if (error) throw error;
+    // Kirim bertahap per 100 IDPEL agar URL tidak kepanjangan (penyebab error Failed to fetch)
+    const chunkSize = 100;
+    for (let i = 0; i < idpels.length; i += chunkSize) {
+      const chunk = idpels.slice(i, i + chunkSize);
+      const selesai = Math.min(i + chunkSize, idpels.length);
+      statusEl.innerHTML = '<span class="text-primary">⏳ Membatalkan pelunasan: <b>' + selesai.toLocaleString("id-ID") + ' / ' + idpels.length.toLocaleString("id-ID") + '</b> pelanggan...</span>';
 
-    statusEl.innerHTML = '<span class="text-success">✅ Berhasil! ' + idpels.length + ' pelanggan telah dikembalikan statusnya menjadi BELUM LUNAS.</span>';
+      const { error } = await db.from('data_tunggakan')
+                                .update({ tgl_lunas: null })
+                                .in('idpel', chunk);
+      if (error) throw error;
+    }
+
+    statusEl.innerHTML = '<span class="text-success">✅ Berhasil! ' + idpels.length.toLocaleString("id-ID") + ' pelanggan telah dikembalikan statusnya menjadi BELUM LUNAS.</span>';
     document.getElementById("textIdpelBatalLunas").value = "";
     
     loadSheet(currentSheet, true); 
