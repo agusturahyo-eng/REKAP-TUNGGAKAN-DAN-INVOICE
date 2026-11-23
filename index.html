@@ -754,28 +754,42 @@ END $ inject $;</pre>
   <div class="modal-dialog modal-dialog-centered modal-xl">
     <div class="modal-content">
       <div class="modal-header bg-warning text-dark py-2">
-        <h6 class="modal-title fw-bold" id="judulPreviewGambarModal">📸 Preview Gambar Rekap Full</h6>
+        <h6 class="modal-title fw-bold" id="judulPreviewGambarModal">📸 Preview Gambar</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body text-center p-2 bg-light">
         <div id="statusCopyGambarModal" class="mb-2"></div>
         <div class="d-flex justify-content-center gap-2 flex-wrap mb-2" id="aksiPreviewGambarBox">
-          <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="salinUlangGambarDariModal()">
+          <button type="button" id="btnModalCopyImg" class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="salinUlangGambarDariModal()">
             📋 Copy Gambar (Paste di WA)
           </button>
-          <button type="button" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="bagikanGambarDariModal()">
+          <button type="button" id="btnModalShareImg" class="btn btn-success btn-sm fw-bold shadow-sm" onclick="bagikanGambarDariModal()">
             📤 Share Langsung (HP)
           </button>
-          <button type="button" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="unduhGambarDariModal()">
+          <button type="button" id="btnModalDownloadImg" class="btn btn-dark btn-sm fw-bold shadow-sm" onclick="unduhGambarDariModal()">
             💾 Download File PNG/JPG
+          </button>
+          <button type="button" id="btnModalFullscreenImg" class="btn btn-warning btn-sm fw-bold shadow-sm text-dark" onclick="bukaModeLayarPenuhGambar()">
+            📱 Layar Penuh (Siap Screenshot)
+          </button>
+          <button type="button" id="btnModalBukaChrome" class="btn btn-outline-primary btn-sm fw-bold shadow-sm d-none" onclick="bukaHalamanDiChromeHp()">
+            🌐 Buka di Chrome (Agar Bisa Share/Download)
           </button>
         </div>
         <div style="max-height: 70vh; overflow: auto;" class="border bg-white p-1 rounded shadow-sm">
-          <img id="imgPreview" src="" class="img-fluid" alt="Preview Gambar">
+          <img id="imgPreview" src="" class="img-fluid" alt="Preview Gambar" style="-webkit-touch-callout: default; user-select: auto;">
         </div>
-        <div class="mt-2 text-dark small fw-bold">💡 Tips: Di Laptop/PC tinggal tekan <b>Ctrl+V (Paste)</b> di grup WhatsApp. Di HP bisa klik <b>Share Langsung</b> atau tekan tahan gambar di atas lalu pilih <b>Bagikan / Salin Gambar</b>.</div>
+        <div id="tipsPreviewGambarModal" class="mt-2 text-dark small fw-bold">💡 Tips: Di Laptop/PC tinggal tekan <b>Ctrl+V (Paste)</b> di grup WhatsApp. Di Browser HP (Chrome) klik <b>Share Langsung</b> atau <b>Download</b>.</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- OVERLAY LAYAR PENUH BERSIH UNTUK SCREENSHOT DI APK HP -->
+<div id="overlayLayarPenuhGambar" class="d-none" onclick="tutupModeLayarPenuhGambar()" style="position:fixed;inset:0;z-index:99999;background:#ffffff;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:8px;overflow:auto;">
+  <img id="imgFullscreenPreview" src="" style="max-width:100%;max-height:96vh;object-fit:contain;" alt="Gambar Layar Penuh">
+  <div id="hintFullscreenClose" style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,0.75);color:#fff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;">
+    Ketuk layar mana saja untuk menutup (Tunggu 2 detik agar tulisan ini hilang sendiri)
   </div>
 </div>
 
@@ -5054,20 +5068,21 @@ function generateCanvasInvoice(r) {
   return canvas;
 }
 
-function createImage(r) {
+async function createImage(r) {
   const canvas = currentSheet === 'invoice' ? generateCanvasInvoice(r) : generateCanvasTunggakan(r);
-  
+  const prefix = currentSheet === 'invoice' ? 'Invoice_' : 'Tunggakan_';
+  const imgData = canvas.toDataURL('image/png');
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+
+  lastGeneratedDataUrlRekap = imgData;
+  lastGeneratedBlobRekap = blob;
+  lastGeneratedFileNameRekap = prefix + (r.idpel || 'Pelanggan') + ".png";
+
   if (window.AppInventor) {
-    const imgData = canvas.toDataURL('image/jpeg', 1.0);
-    document.getElementById('imgPreview').src = imgData;
-    const modalEl = new bootstrap.Modal(document.getElementById('previewGambarModal'));
-    modalEl.show();
+    tampilkanModalPreviewGambar("📸 Preview " + prefix.replace("_", "") + " (" + (r.nama || r.idpel) + ")", imgData, false);
   } else {
-    const prefix = currentSheet === 'invoice' ? 'Invoice_' : 'Tunggakan_';
-    const link = document.createElement('a');
-    link.download = prefix + r.idpel + ".jpg";
-    link.href = canvas.toDataURL('image/jpeg', 1.0);
-    link.click();
+    // Di browser HP/Laptop: tampilkan modal agar bisa langsung Share ke WA, Copy, atau Download
+    tampilkanModalPreviewGambar("📸 Preview " + prefix.replace("_", "") + " (" + (r.nama || r.idpel) + ")", imgData, false);
   }
 }
 
@@ -5207,27 +5222,11 @@ async function copyAtauShareGambarRekapFull() {
       }
     }
 
-    // Tampilkan di Modal Preview agar user bisa lihat hasilnya, atau klik Share / Download
-    const imgEl = document.getElementById("imgPreview");
-    if (imgEl) imgEl.src = lastGeneratedDataUrlRekap;
-
-    const judulModal = document.getElementById("judulPreviewGambarModal");
-    if (judulModal) judulModal.innerText = "📸 Gambar Rekap Utuh 1 Halaman (" + currentSheet.toUpperCase() + ")";
-
-    const boxAksi = document.getElementById("aksiPreviewGambarBox");
-    if (boxAksi) boxAksi.classList.remove("d-none");
-
-    const statusModal = document.getElementById("statusCopyGambarModal");
-    if (statusModal) {
-      if (berhasilCopyClipboard) {
-        statusModal.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0 small fw-bold">✅ Gambar Rekap Full 1 Halaman SUDAH TER-COPY ke Clipboard! Silakan langsung tekan <b>Ctrl + V (Paste)</b> di WhatsApp, atau gunakan tombol di bawah.</div>';
-      } else {
-        statusModal.innerHTML = '<div class="alert alert-info py-1 px-2 mb-0 small fw-bold">📸 Gambar Rekap Full 1 Halaman siap! Klik <b>Copy Gambar</b>, <b>Share Langsung</b>, atau <b>Download</b> di bawah.</div>';
-      }
-    }
-
-    const modalEl = new bootstrap.Modal(document.getElementById("previewGambarModal"));
-    modalEl.show();
+    tampilkanModalPreviewGambar(
+      "📸 Gambar Rekap Utuh 1 Halaman (" + currentSheet.toUpperCase() + ")",
+      lastGeneratedDataUrlRekap,
+      berhasilCopyClipboard
+    );
 
   } catch (err) {
     alert("❌ Gagal membuat gambar rekap: " + err.message);
@@ -5239,9 +5238,97 @@ async function copyAtauShareGambarRekapFull() {
   }
 }
 
+function tampilkanModalPreviewGambar(judul, dataUrl, sudahTerCopy) {
+  const imgEl = document.getElementById("imgPreview");
+  if (imgEl) imgEl.src = dataUrl;
+
+  const judulModal = document.getElementById("judulPreviewGambarModal");
+  if (judulModal) judulModal.innerText = judul;
+
+  const isApk = Boolean(window.AppInventor);
+  const btnCopy = document.getElementById("btnModalCopyImg");
+  const btnShare = document.getElementById("btnModalShareImg");
+  const btnDl = document.getElementById("btnModalDownloadImg");
+  const btnChrome = document.getElementById("btnModalBukaChrome");
+  const tipsEl = document.getElementById("tipsPreviewGambarModal");
+  const statusModal = document.getElementById("statusCopyGambarModal");
+
+  if (isApk) {
+    // WebView APK (AppInventor/Kodular) memblokir API Share, Copy Gambar, Download, dan Tekan-Tahan
+    if (btnCopy) btnCopy.classList.add("d-none");
+    if (btnShare) btnShare.classList.add("d-none");
+    if (btnDl) btnDl.classList.add("d-none");
+    if (btnChrome) btnChrome.classList.remove("d-none");
+    if (statusModal) {
+      statusModal.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small fw-bold">📱 <b>Mode Aplikasi APK:</b> WebView APK tidak mendukung Share/Download file langsung. Klik <b>📱 Layar Penuh (Siap Screenshot)</b> untuk mengambil gambar bersih, atau klik <b>🌐 Buka di Chrome</b> agar tombol Share & Download aktif.</div>';
+    }
+    if (tipsEl) {
+      tipsEl.innerHTML = '💡 Tips APK: Klik tombol kuning <b>📱 Layar Penuh</b> agar gambar tampil penuh & bersih tanpa tombol, lalu lakukan <b>Screenshot</b> di HP Anda.';
+    }
+  } else {
+    if (btnCopy) btnCopy.classList.remove("d-none");
+    if (btnShare) btnShare.classList.remove("d-none");
+    if (btnDl) btnDl.classList.remove("d-none");
+    if (btnChrome) btnChrome.classList.add("d-none");
+    if (statusModal) {
+      if (sudahTerCopy) {
+        statusModal.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0 small fw-bold">✅ Gambar SUDAH TER-COPY ke Clipboard! Tinggal tekan <b>Ctrl + V (Paste)</b> di WhatsApp, atau gunakan tombol Share / Download di bawah.</div>';
+      } else {
+        statusModal.innerHTML = '<div class="alert alert-info py-1 px-2 mb-0 small fw-bold">📸 Gambar siap! Klik <b>Share Langsung (HP)</b>, <b>Copy Gambar</b>, atau <b>Download</b> di bawah.</div>';
+      }
+    }
+    if (tipsEl) {
+      tipsEl.innerHTML = '💡 Tips: Di Laptop/PC tinggal tekan <b>Ctrl+V (Paste)</b> di grup WhatsApp. Di Chrome HP klik <b>📤 Share Langsung (HP)</b> atau <b>💾 Download</b>.';
+    }
+  }
+
+  const modalEl = bootstrap.Modal.getOrCreateInstance(document.getElementById("previewGambarModal"));
+  modalEl.show();
+}
+
+let timerHintFullscreen = null;
+function bukaModeLayarPenuhGambar() {
+  if (!lastGeneratedDataUrlRekap) return;
+  const ov = document.getElementById("overlayLayarPenuhGambar");
+  const imgFull = document.getElementById("imgFullscreenPreview");
+  const hint = document.getElementById("hintFullscreenClose");
+  if (!ov || !imgFull) return;
+
+  imgFull.src = lastGeneratedDataUrlRekap;
+  ov.classList.remove("d-none");
+  ov.style.display = "flex";
+  if (hint) {
+    hint.style.display = "block";
+    clearTimeout(timerHintFullscreen);
+    timerHintFullscreen = setTimeout(() => {
+      hint.style.display = "none";
+    }, 2200);
+  }
+}
+
+function tutupModeLayarPenuhGambar() {
+  const ov = document.getElementById("overlayLayarPenuhGambar");
+  if (ov) {
+    ov.classList.add("d-none");
+    ov.style.display = "none";
+  }
+}
+
+function bukaHalamanDiChromeHp() {
+  const urlSekarang = window.location.href;
+  if (window.AppInventor && typeof window.AppInventor.setWebViewString === "function") {
+    window.AppInventor.setWebViewString(urlSekarang);
+  } else {
+    window.open(urlSekarang, "_blank");
+  }
+}
+
 async function salinUlangGambarDariModal() {
   const statusModal = document.getElementById("statusCopyGambarModal");
-  if (!lastGeneratedBlobRekap) return;
+  if (!lastGeneratedBlobRekap) {
+    if (statusModal) statusModal.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0 small fw-bold">⚠️ Gambar belum siap, silakan tutup lalu klik ulang tombol Gambar.</div>';
+    return;
+  }
   try {
     if (navigator.clipboard && window.ClipboardItem) {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": lastGeneratedBlobRekap })]);
@@ -5253,20 +5340,28 @@ async function salinUlangGambarDariModal() {
     }
   } catch (err) {
     if (statusModal) {
-      statusModal.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small fw-bold">⚠️ ' + err.message + ' (Atau tekan tahan gambar di bawah lalu pilih Salin/Bagikan).</div>';
+      statusModal.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small fw-bold">⚠️ ' + err.message + '</div>';
     }
   }
 }
 
 async function bagikanGambarDariModal() {
-  if (!lastGeneratedBlobRekap) return;
+  const statusModal = document.getElementById("statusCopyGambarModal");
+  if (!lastGeneratedBlobRekap) {
+    if (statusModal) statusModal.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0 small fw-bold">⚠️ Gambar belum siap, silakan tutup lalu klik ulang tombol Gambar.</div>';
+    return;
+  }
+  if (window.AppInventor) {
+    bukaModeLayarPenuhGambar();
+    return;
+  }
   const file = new File([lastGeneratedBlobRekap], lastGeneratedFileNameRekap, { type: "image/png" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
         title: "Rekap Tunggakan & Invoice ULP Tulung",
-        text: "Rekap " + currentSheet.toUpperCase() + " ULP Tulung"
+        text: "Data " + currentSheet.toUpperCase() + " ULP Tulung"
       });
       return;
     } catch (err) {
@@ -5275,6 +5370,9 @@ async function bagikanGambarDariModal() {
       }
     }
   } else {
+    if (statusModal) {
+      statusModal.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small fw-bold">⚠️ Browser ini belum mendukung Share File langsung. Gambar otomatis didownload ke perangkat Anda.</div>';
+    }
     unduhGambarDariModal();
   }
 }
@@ -5282,7 +5380,7 @@ async function bagikanGambarDariModal() {
 function unduhGambarDariModal() {
   if (!lastGeneratedDataUrlRekap) return;
   if (window.AppInventor) {
-    alert("💡 Di aplikasi HP: Silakan tekan & tahan gambar di bawah, atau gunakan Screenshot untuk membagikan.");
+    bukaModeLayarPenuhGambar();
     return;
   }
   const link = document.createElement("a");
@@ -5310,5 +5408,6 @@ document.addEventListener('click', function(e) {
 
 </body>
 </html>
+
 
 
