@@ -30,22 +30,48 @@ tr.clickable:hover td { filter: brightness(0.92); }
 .summary-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 700; }
 .summary-value { font-size: 1.08rem; font-weight: 800; margin-top: 2px; }
 
-/* TABEL REKAP - WARNA SESUAI GAMBAR STANDAR ULP TULUNG */
-.table-rekap { border-collapse: separate; border-spacing: 0; background: white; }
+/* TABEL REKAP - WARNA SESUAI STANDAR MANBILL ULP TULUNG */
+.table-rekap { border-collapse: separate; border-spacing: 0; background: white; border: 1.5px solid #1e293b; }
 .table-rekap thead th {
-    background-color: #0052cc !important;
-    color: white !important;
-    border: 1px solid #003d99 !important;
+    background-color: #1565c0 !important;
+    color: #ffffff !important;
+    border: 1px solid #1e293b !important;
     font-weight: 700;
     padding: 6px 6px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+.table-rekap thead th.th-mint {
+    background-color: #b7dfbf !important;
+    color: #0f172a !important;
+}
+.table-rekap thead th.th-green {
+    background-color: #a3d977 !important;
+    color: #0f172a !important;
 }
 .table-rekap td { 
     vertical-align: middle; 
     text-align: center; 
     white-space: nowrap; 
-    border: 1px solid #cbd5e1; 
+    border: 1px solid #334155; 
     padding: 4px 6px !important; 
     line-height: 1.25;
+}
+.legend-indikator {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 0.74rem;
+    font-weight: 700;
+}
+.legend-pill {
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.15);
 }
 .freeze-col { position: sticky; left: 0; z-index: 1; box-shadow: 2px 0 5px rgba(0,0,0,0.08); }
 .rekap-container {
@@ -1393,12 +1419,33 @@ document.getElementById("backBtn").onclick = () => {
 };
 
 function getWarnaProgress(persen, sisaLbr) {
-    if (sisaLbr === 0) return { bg: '#002060', text: '#ffffff' }; 
-    if (persen >= 100) return { bg: '#00b0f0', text: '#000000' }; 
-    if (persen >= 91)  return { bg: '#92d050', text: '#000000' }; 
-    if (persen >= 61)  return { bg: '#ffff00', text: '#000000' }; 
-    if (persen >= 21)  return { bg: '#ff0000', text: '#ffffff' }; 
-    return { bg: '#000000', text: '#ffffff' };                    
+    if (sisaLbr === 0 || persen >= 100) return { bg: '#0b2c5c', text: '#ffffff' }; // ≥ 100% (Biru Tua)
+    if (persen >= 91)  return { bg: '#34a853', text: '#ffffff' };                 // 91 - 99% (Hijau)
+    if (persen >= 61)  return { bg: '#f5b82e', text: '#000000' };                 // 61 - 90% (Kuning)
+    if (persen >= 21)  return { bg: '#d94848', text: '#ffffff' };                 // 21 - 60% (Merah)
+    return { bg: '#262626', text: '#ffffff' };                                    // 0 - 20% (Hitam)
+}
+
+function getPaletKoordinator(idx) {
+    const palet = [
+        { solid: '#f7d972', zebra: '#fcebb6' }, // Kuning (Cth: BUDI SANTOSO)
+        { solid: '#8cc665', zebra: '#a8d688' }, // Hijau (Cth: SISCHA)
+        { solid: '#8eb4e3', zebra: '#a7c5eb' }, // Biru Langit (Cth: AGUS TURAHYO)
+        { solid: '#c5a3e0', zebra: '#e2d1f0' }, // Ungu Lembut
+        { solid: '#f4a6a6', zebra: '#fad2d2' }  // Merah Muda Lembut
+    ];
+    return palet[idx % palet.length];
+}
+
+function getHtmlLegendIndikator() {
+    return '<div class="legend-indikator">' +
+        '<span class="text-dark">Indikator % Target:</span>' +
+        '<span class="legend-pill" style="background:#262626;color:#ffffff;">0 - 20% (Hitam)</span>' +
+        '<span class="legend-pill" style="background:#d94848;color:#ffffff;">21 - 60% (Merah)</span>' +
+        '<span class="legend-pill" style="background:#f5b82e;color:#000000;">61 - 90% (Kuning)</span>' +
+        '<span class="legend-pill" style="background:#34a853;color:#ffffff;">91 - 99% (Hijau)</span>' +
+        '<span class="legend-pill" style="background:#0b2c5c;color:#ffffff;">≥ 100% (Biru)</span>' +
+    '</div>';
 }
 
 function hitungTargetLembar(sisaSaldoLembar, startDay, targetEndDay) {
@@ -1543,36 +1590,46 @@ function renderPetugas() {
       });
   });
 
-  let h = '<div class="table-responsive rekap-container"><table class="table table-sm table-rekap" style="font-size: 0.76rem;"><thead style="position: sticky; top: 0; z-index: 2;"><tr>' +
-          '<th rowspan="2" class="align-middle">NO</th>' +
-          '<th rowspan="2" class="align-middle text-start">KOORDINATOR</th>' +
-          '<th rowspan="2" class="align-middle text-start">KODE</th>' +
-          '<th rowspan="2" class="align-middle freeze-col text-start">PETUGAS</th>' +
-          '<th colspan="2">TOTAL SALDO</th>' +
-          '<th colspan="2">SALDO SAAT INI</th>' +
-          '<th rowspan="2" class="align-middle">TARGET HARI INI</th>' +
-          '<th colspan="' + (displayEndDay - startDay + 1) + '">JUMLAH LUNAS TANGGAL</th>' +
-          '<th rowspan="2" class="align-middle">PROGRES TOTAL</th>' +
-          '<th rowspan="2" class="align-middle">TANGGAL NIHIL</th>' +
-        '</tr><tr><th>LEMBAR</th><th class="text-end">RUPIAH</th><th>LEMBAR</th><th class="text-end">RUPIAH</th>';
+  // Hitung jumlah baris per koordinator untuk merge (rowspan)
+  const countPerKoord = {};
+  sorted.forEach(p => {
+    const kKey = p.koordinator || "";
+    countPerKoord[kKey] = (countPerKoord[kKey] || 0) + 1;
+  });
+
+  let h = getHtmlLegendIndikator() +
+          '<div class="table-responsive rekap-container"><table class="table table-sm table-rekap" style="font-size: 0.76rem;"><thead style="position: sticky; top: 0; z-index: 2;"><tr>' +
+          '<th rowspan="2" class="align-middle text-center">NO</th>' +
+          '<th rowspan="2" class="align-middle text-center">KOORDINATOR</th>' +
+          '<th rowspan="2" class="align-middle text-center">KODE</th>' +
+          '<th rowspan="2" class="align-middle freeze-col text-center">PETUGAS</th>' +
+          '<th colspan="2" class="th-mint text-center">TOTAL SALDO</th>' +
+          '<th colspan="2" class="th-mint text-center">SALDO SAAT INI</th>' +
+          '<th rowspan="2" class="align-middle th-mint text-center">TARGET HARI INI</th>' +
+          '<th colspan="' + (displayEndDay - startDay + 1) + '" class="th-green text-center">JUMLAH LUNAS TANGGAL</th>' +
+          '<th rowspan="2" class="align-middle th-green text-center">PROGRES TOTAL</th>' +
+          '<th rowspan="2" class="align-middle th-green text-center">TANGGAL NIHIL</th>' +
+        '</tr><tr><th class="th-mint text-center">LEMBAR</th><th class="th-mint text-center">RUPIAH</th><th class="th-mint text-center">LEMBAR</th><th class="th-mint text-center">RUPIAH</th>';
           
-  for (let i = startDay; i <= displayEndDay; i++) { h += '<th>' + i + '</th>'; }
+  for (let i = startDay; i <= displayEndDay; i++) { h += '<th class="th-green">' + i + '</th>'; }
   h += '</tr></thead><tbody>';
 
   let no = 1;
   let sumTotalLbr = 0, sumTotalRp = 0, sumSisaLbr = 0, sumSisaRp = 0;
   let sumTargetHarian = 0, globalMaxTglLunas = 0;
 
-  const paletKoordinator = ["#f0f9ff", "#f0fdf4", "#fffbeb", "#faf5ff", "#fff1f2"]; 
-  let lastKoord = null, indexWarnaKoord = -1, toggleBaris = 0;      
+  let lastKoord = null, indexWarnaKoord = -1, toggleBaris = 0;
 
   sorted.forEach(p => { 
+    let isFirstOfKoord = false;
     if (p.koordinator !== lastKoord) {
         lastKoord = p.koordinator;
-        indexWarnaKoord = (indexWarnaKoord + 1) % paletKoordinator.length;
-        toggleBaris = 0; 
+        indexWarnaKoord++;
+        toggleBaris = 0;
+        isFirstOfKoord = true;
     }
-    let currentBgColor = (toggleBaris++ % 2 === 0) ? paletKoordinator[indexWarnaKoord] : "#ffffff";
+    const paletK = getPaletKoordinator(indexWarnaKoord);
+    let currentBgColor = (toggleBaris++ % 2 === 0) ? paletK.zebra : "#ffffff";
 
     let progress = p.j_total > 0 ? Math.round(((p.j_total - p.j_sisa) / p.j_total) * 100) : 0;
     
@@ -1586,16 +1643,20 @@ function renderPetugas() {
     let wTotal = getWarnaProgress(progress, p.j_sisa);
     let tglNihil = p.j_sisa === 0 ? (p.max_tgl_lunas > 0 ? p.max_tgl_lunas : 'SELESAI') : 'BELUM';
 
+    let cellKoord = isFirstOfKoord
+      ? '<td rowspan="' + countPerKoord[p.koordinator || ""] + '" class="text-center fw-bold align-middle" style="background-color: ' + paletK.solid + '; color: #0f172a;">' + (p.koordinator || '-') + '</td>'
+      : '';
+
     let rowHtml = '<tr class="clickable" onclick="openPetugas(\'' + p.kode + '\')">' +
-      '<td style="background-color: ' + currentBgColor + ';">' + (no++) + '</td>' +
-      '<td class="text-start fw-bold" style="background-color: ' + currentBgColor + ';">' + p.koordinator + '</td>' +
-      '<td class="text-start" style="background-color: ' + currentBgColor + ';">' + p.kode + '</td>' +
-      '<td class="text-start freeze-col fw-bold" style="background-color: ' + currentBgColor + ';">' + p.nama_petugas + '</td>' +
-      '<td style="background-color: ' + currentBgColor + ';">' + p.j_total + '</td>' +
-      '<td class="text-end" style="background-color: ' + currentBgColor + ';">Rp ' + p.rp_total.toLocaleString("id-ID") + '</td>' +
+      '<td style="background-color: #d9e2ef; color: #0f172a; font-weight: 600;">' + (no++) + '</td>' +
+      cellKoord +
+      '<td class="text-center fw-bold" style="background-color: ' + currentBgColor + '; color: #0f172a;">' + p.kode + '</td>' +
+      '<td class="text-start freeze-col fw-bold" style="background-color: ' + currentBgColor + '; color: #0f172a;">' + p.nama_petugas + '</td>' +
+      '<td class="fw-semibold" style="background-color: ' + currentBgColor + '; color: #0f172a;">' + p.j_total + '</td>' +
+      '<td class="text-end fw-semibold" style="background-color: ' + currentBgColor + '; color: #0f172a;">Rp ' + p.rp_total.toLocaleString("id-ID") + '</td>' +
       '<td class="fw-bold" style="background-color: ' + wTotal.bg + '; color: ' + wTotal.text + ';">' + p.j_sisa + '</td>' +
       '<td class="text-end fw-bold" style="background-color: ' + wTotal.bg + '; color: ' + wTotal.text + ';">Rp ' + p.rp_sisa.toLocaleString("id-ID") + '</td>' +
-      '<td class="fw-bold text-primary fs-6" style="background-color: #ffffff;">' + targetDinamis + '</td>';
+      '<td class="fw-bold text-primary fs-6" style="background-color: ' + currentBgColor + ';">' + targetDinamis + '</td>';
 
     let sisaSimulasi = p.j_total;
     for (let d = 1; d < startDay; d++) {
@@ -1607,13 +1668,13 @@ function renderPetugas() {
         let targetSimulasi = sisaSimulasi > 0 ? (i >= targetEndDay ? sisaSimulasi : Math.ceil(sisaSimulasi / (targetEndDay - i + 1))) : 0;
         let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
 
-        let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
+        let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
         rowHtml += '<td style="background-color: ' + wHarian.bg + '; color: ' + wHarian.text + ';">' + val + '</td>';
         sisaSimulasi -= val; 
     }
 
     rowHtml += '<td class="fw-bold" style="background-color: ' + wTotal.bg + '; color: ' + wTotal.text + ';">' + progress + '%</td>' +
-               '<td class="fw-bold" style="background-color: #ffffff;">' + tglNihil + '</td></tr>'; 
+               '<td class="fw-bold" style="background-color: ' + currentBgColor + '; color: #0f172a;">' + tglNihil + '</td></tr>'; 
     h += rowHtml;
   });
 
@@ -1621,12 +1682,12 @@ function renderPetugas() {
   let wGrandTotal = getWarnaProgress(totalProgress, sumSisaLbr);
   let globalTglNihil = sumSisaLbr === 0 ? (globalMaxTglLunas > 0 ? globalMaxTglLunas : 'SELESAI') : 'BELUM';
 
-  h += '<tr class="fw-bold clickable" style="background-color: #e0f2fe;" onclick="openGlobal()">' +
-      '<td colspan="4" class="text-center freeze-col" style="background-color: #e0f2fe;">JUMLAH KESELURUHAN</td>' +
-      '<td>' + sumTotalLbr + '</td><td class="text-end">Rp ' + sumTotalRp.toLocaleString("id-ID") + '</td>' +
+  h += '<tr class="fw-bold clickable" style="background-color: #5ce1e6; color: #0f172a; border-top: 2px solid #0f172a;" onclick="openGlobal()">' +
+      '<td colspan="4" class="text-center freeze-col" style="background-color: #5ce1e6; color: #0f172a;">JUMLAH KESELURUHAN</td>' +
+      '<td style="background-color: #5ce1e6; color: #0f172a;">' + sumTotalLbr + '</td><td class="text-end" style="background-color: #5ce1e6; color: #0f172a;">Rp ' + sumTotalRp.toLocaleString("id-ID") + '</td>' +
       '<td style="background-color: ' + wGrandTotal.bg + '; color: ' + wGrandTotal.text + ';">' + sumSisaLbr + '</td>' +
       '<td class="text-end" style="background-color: ' + wGrandTotal.bg + '; color: ' + wGrandTotal.text + ';">Rp ' + sumSisaRp.toLocaleString("id-ID") + '</td>' +
-      '<td class="text-primary fs-6">' + sumTargetHarian + '</td>';
+      '<td style="background-color: #5ce1e6; color: #0f172a;" class="fs-6">' + sumTargetHarian + '</td>';
       
   let globalSisaSimulasi = sumTotalLbr;
   for (let d = 1; d < startDay; d++) {
@@ -1637,13 +1698,13 @@ function renderPetugas() {
       let val = sumHarianGlobal[i] || 0;
       let targetSimulasi = globalSisaSimulasi > 0 ? (i >= targetEndDay ? globalSisaSimulasi : Math.ceil(globalSisaSimulasi / (targetEndDay - i + 1))) : 0;
       let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-      let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
+      let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
       h += '<td style="background-color: ' + wTotalHarian.bg + '; color: ' + wTotalHarian.text + ';">' + val + '</td>';
       globalSisaSimulasi -= val;
   }
   
   h += '<td style="background-color: ' + wGrandTotal.bg + '; color: ' + wGrandTotal.text + ';">' + totalProgress + '%</td>' +
-       '<td>' + globalTglNihil + '</td></tr>';
+       '<td style="background-color: #5ce1e6; color: #0f172a;">' + globalTglNihil + '</td></tr>';
   document.getElementById("viewAreaLayar").innerHTML = h + '</tbody></table></div>';
 }
 
@@ -2548,21 +2609,21 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     buatSelExcel("KOORDINATOR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
     buatSelExcel("KODE", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
     buatSelExcel("PETUGAS", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("TOTAL SALDO", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("TOTAL SALDO", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("SALDO SAAT INI", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("SALDO SAAT INI", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("TARGET HARI INI", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+    buatSelExcel("TARGET HARI INI", "s", "B7DFBF", "0F172A", "center", true, null, "003D99")
   ];
   const rowHdr1 = [
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("LEMBAR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("RUPIAH", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("LEMBAR", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("RUPIAH", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
+    buatSelExcel("LEMBAR", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
+    buatSelExcel("RUPIAH", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
+    buatSelExcel("LEMBAR", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
+    buatSelExcel("RUPIAH", "s", "B7DFBF", "0F172A", "center", true, null, "003D99"),
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
   ];
 
@@ -2571,8 +2632,8 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     rowHdr1.push(buatSelExcel(i, "n", "0052CC", "FFFFFF", "center", true, "0", "003D99"));
   }
   rowHdr0.push(
-    buatSelExcel("PROGRES TOTAL", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
-    buatSelExcel("TANGGAL NIHIL", "s", "0052CC", "FFFFFF", "center", true, null, "003D99")
+    buatSelExcel("PROGRES TOTAL", "s", "A3D977", "0F172A", "center", true, null, "003D99"),
+    buatSelExcel("TANGGAL NIHIL", "s", "A3D977", "0F172A", "center", true, null, "003D99")
   );
   rowHdr1.push(
     buatSelExcel("", "s", "0052CC", "FFFFFF", "center", true, null, "003D99"),
@@ -2582,24 +2643,24 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
   const styledMatrix = [rowHdr0, rowHdr1];
 
   let h = '<div class="table-responsive rekap-container"><table class="table table-sm table-rekap" style="font-size: 0.76rem;"><thead style="position: sticky; top: 0; z-index: 2;"><tr>' +
-          '<th rowspan="2" class="align-middle">NO</th>' +
-          '<th rowspan="2" class="align-middle text-start">KOORDINATOR</th>' +
-          '<th rowspan="2" class="align-middle text-start">KODE</th>' +
-          '<th rowspan="2" class="align-middle freeze-col text-start">PETUGAS</th>' +
-          '<th colspan="2">TOTAL SALDO</th>' +
-          '<th colspan="2">SALDO SAAT INI</th>' +
-          '<th rowspan="2" class="align-middle">TARGET HARI INI</th>' +
-          '<th colspan="' + numDays + '">JUMLAH LUNAS TANGGAL</th>' +
-          '<th rowspan="2" class="align-middle">PROGRES TOTAL</th>' +
-          '<th rowspan="2" class="align-middle">TANGGAL NIHIL</th>' +
-        '</tr><tr><th>LEMBAR</th><th class="text-end">RUPIAH</th><th>LEMBAR</th><th class="text-end">RUPIAH</th>';
+          '<th rowspan="2" class="align-middle text-center">NO</th>' +
+          '<th rowspan="2" class="align-middle text-center">KOORDINATOR</th>' +
+          '<th rowspan="2" class="align-middle text-center">KODE</th>' +
+          '<th rowspan="2" class="align-middle freeze-col text-center">PETUGAS</th>' +
+          '<th colspan="2" class="th-mint text-center">TOTAL SALDO</th>' +
+          '<th colspan="2" class="th-mint text-center">SALDO SAAT INI</th>' +
+          '<th rowspan="2" class="align-middle th-mint text-center">TARGET HARI INI</th>' +
+          '<th colspan="' + numDays + '" class="th-green text-center">JUMLAH LUNAS TANGGAL</th>' +
+          '<th rowspan="2" class="align-middle th-green text-center">PROGRES TOTAL</th>' +
+          '<th rowspan="2" class="align-middle th-green text-center">TANGGAL NIHIL</th>' +
+        '</tr><tr><th class="th-mint text-center">LEMBAR</th><th class="th-mint text-center">RUPIAH</th><th class="th-mint text-center">LEMBAR</th><th class="th-mint text-center">RUPIAH</th>';
   for (let i = startDay; i <= displayEndDay; i++) h += '<th>' + i + '</th>';
   h += '</tr></thead><tbody>';
 
   let no = 1;
   let sumTotalLbr = 0, sumTotalRp = 0, sumSisaLbr = 0, sumSisaRp = 0;
   let sumTargetHarian = 0, globalMaxTglLunas = 0;
-  const paletKoordinator = ["#f0f9ff", "#f0fdf4", "#fffbeb", "#faf5ff", "#fff1f2"];
+  const paletKoordinator = ["#fcebb6", "#a8d688", "#a7c5eb", "#e2d1f0", "#fad2d2"];
   let lastKoord = null, indexWarnaKoord = -1, toggleBaris = 0;
 
   sorted.forEach(p => {
@@ -2653,7 +2714,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
       let val = p.lunas_harian[i] || 0;
       let targetSimulasi = sisaSimulasi > 0 ? (i >= targetEndDay ? sisaSimulasi : Math.ceil(sisaSimulasi / (targetEndDay - i + 1))) : 0;
       let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-      let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
+      let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
       rowHtml += '<td style="background-color: ' + wHarian.bg + '; color: ' + wHarian.text + ';">' + val + '</td>';
       rowStyled.push(buatSelExcel(val, "n", wHarian.bg, wHarian.text, "center", false, "0"));
       sisaSimulasi -= val;
@@ -2675,15 +2736,15 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
   let globalTglNihil = sumSisaLbr === 0 ? (globalMaxTglLunas > 0 ? globalMaxTglLunas : 'SELESAI') : 'BELUM';
 
   const rowTotalStyled = [
-    buatSelExcel("JUMLAH KESELURUHAN", "s", "#E0F2FE", "#000000", "center", true),
-    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
-    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
-    buatSelExcel("", "s", "#E0F2FE", "#000000", "center", true),
-    buatSelExcel(sumTotalLbr, "n", "#E0F2FE", "#000000", "center", true, "#,##0"),
-    buatSelExcel(sumTotalRp, "n", "#E0F2FE", "#000000", "right", true, '"Rp "#,##0'),
+    buatSelExcel("JUMLAH KESELURUHAN", "s", "#5CE1E6", "#000000", "center", true),
+    buatSelExcel("", "s", "#5CE1E6", "#000000", "center", true),
+    buatSelExcel("", "s", "#5CE1E6", "#000000", "center", true),
+    buatSelExcel("", "s", "#5CE1E6", "#000000", "center", true),
+    buatSelExcel(sumTotalLbr, "n", "#5CE1E6", "#000000", "center", true, "#,##0"),
+    buatSelExcel(sumTotalRp, "n", "#5CE1E6", "#000000", "right", true, '"Rp "#,##0'),
     buatSelExcel(sumSisaLbr, "n", wGrandTotal.bg, wGrandTotal.text, "center", true, "#,##0"),
     buatSelExcel(sumSisaRp, "n", wGrandTotal.bg, wGrandTotal.text, "right", true, '"Rp "#,##0'),
-    buatSelExcel(sumTargetHarian, "n", "#E0F2FE", "#0052CC", "center", true, "#,##0")
+    buatSelExcel(sumTargetHarian, "n", "#5CE1E6", "#0052CC", "center", true, "#,##0")
   ];
 
   h += '<tr class="fw-bold clickable" style="background-color: #e0f2fe;" onclick="openGlobal()">' +
@@ -2702,7 +2763,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     let val = sumHarianGlobal[i] || 0;
     let targetSimulasi = globalSisaSimulasi > 0 ? (i >= targetEndDay ? globalSisaSimulasi : Math.ceil(globalSisaSimulasi / (targetEndDay - i + 1))) : 0;
     let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-    let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#002060', text: '#ffffff' } : getWarnaProgress(persen, 1);
+    let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
     h += '<td style="background-color: ' + wTotalHarian.bg + '; color: ' + wTotalHarian.text + ';">' + val + '</td>';
     rowTotalStyled.push(buatSelExcel(val, "n", wTotalHarian.bg, wTotalHarian.text, "center", true, "#,##0"));
     globalSisaSimulasi -= val;
@@ -2710,7 +2771,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
 
   rowTotalStyled.push(
     buatSelExcel(totalProgress + "%", "s", wGrandTotal.bg, wGrandTotal.text, "center", true),
-    buatSelExcel(String(globalTglNihil), "s", "#E0F2FE", "#000000", "center", true)
+    buatSelExcel(String(globalTglNihil), "s", "#5CE1E6", "#000000", "center", true)
   );
   styledMatrix.push(rowTotalStyled);
 
@@ -5249,4 +5310,5 @@ document.addEventListener('click', function(e) {
 
 </body>
 </html>
+
 
