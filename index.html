@@ -1433,7 +1433,7 @@ document.getElementById("backBtn").onclick = () => {
 };
 
 function getWarnaProgress(persen, sisaLbr) {
-    if (sisaLbr === 0 || persen >= 100) return { bg: '#0b2c5c', text: '#ffffff' }; // ≥ 100% (Biru Tua)
+    if (sisaLbr === 0 || persen >= 100) return { bg: '#1a73e8', text: '#ffffff' }; // ≥ 100% (Biru Tua)
     if (persen >= 91)  return { bg: '#34a853', text: '#ffffff' };                 // 91 - 99% (Hijau)
     if (persen >= 61)  return { bg: '#f5b82e', text: '#000000' };                 // 61 - 90% (Kuning)
     if (persen >= 21)  return { bg: '#d94848', text: '#ffffff' };                 // 21 - 60% (Merah)
@@ -1458,7 +1458,7 @@ function getHtmlLegendIndikator() {
         '<span class="legend-pill" style="background:#d94848;color:#ffffff;">21 - 60% (Merah)</span>' +
         '<span class="legend-pill" style="background:#f5b82e;color:#000000;">61 - 90% (Kuning)</span>' +
         '<span class="legend-pill" style="background:#34a853;color:#ffffff;">91 - 99% (Hijau)</span>' +
-        '<span class="legend-pill" style="background:#0b2c5c;color:#ffffff;">≥ 100% (Biru)</span>' +
+        '<span class="legend-pill" style="background:#1a73e8;color:#ffffff;">≥ 100% (Biru)</span>' +
     '</div>';
 }
 
@@ -1682,7 +1682,7 @@ function renderPetugas() {
         let targetSimulasi = sisaSimulasi > 0 ? (i >= targetEndDay ? sisaSimulasi : Math.ceil(sisaSimulasi / (targetEndDay - i + 1))) : 0;
         let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
 
-        let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
+        let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#1a73e8', text: '#ffffff' } : getWarnaProgress(persen, 1);
         rowHtml += '<td style="background-color: ' + wHarian.bg + '; color: ' + wHarian.text + ';">' + val + '</td>';
         sisaSimulasi -= val; 
     }
@@ -1712,7 +1712,7 @@ function renderPetugas() {
       let val = sumHarianGlobal[i] || 0;
       let targetSimulasi = globalSisaSimulasi > 0 ? (i >= targetEndDay ? globalSisaSimulasi : Math.ceil(globalSisaSimulasi / (targetEndDay - i + 1))) : 0;
       let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-      let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
+      let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#1a73e8', text: '#ffffff' } : getWarnaProgress(persen, 1);
       h += '<td style="background-color: ' + wTotalHarian.bg + '; color: ' + wTotalHarian.text + ';">' + val + '</td>';
       globalSisaSimulasi -= val;
   }
@@ -2728,7 +2728,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
       let val = p.lunas_harian[i] || 0;
       let targetSimulasi = sisaSimulasi > 0 ? (i >= targetEndDay ? sisaSimulasi : Math.ceil(sisaSimulasi / (targetEndDay - i + 1))) : 0;
       let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-      let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
+      let wHarian = (p.j_sisa === 0 && i >= p.max_tgl_lunas) ? { bg: '#1a73e8', text: '#ffffff' } : getWarnaProgress(persen, 1);
       rowHtml += '<td style="background-color: ' + wHarian.bg + '; color: ' + wHarian.text + ';">' + val + '</td>';
       rowStyled.push(buatSelExcel(val, "n", wHarian.bg, wHarian.text, "center", false, "0"));
       sisaSimulasi -= val;
@@ -2777,7 +2777,7 @@ function susunRekapUntukBackup(dataRows, jenisSheet, jmlHariBulan) {
     let val = sumHarianGlobal[i] || 0;
     let targetSimulasi = globalSisaSimulasi > 0 ? (i >= targetEndDay ? globalSisaSimulasi : Math.ceil(globalSisaSimulasi / (targetEndDay - i + 1))) : 0;
     let persen = targetSimulasi > 0 ? Math.round((val / targetSimulasi) * 100) : (val > 0 ? 100 : 0);
-    let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#0b2c5c', text: '#ffffff' } : getWarnaProgress(persen, 1);
+    let wTotalHarian = (sumSisaLbr === 0 && i >= globalMaxTglLunas) ? { bg: '#1a73e8', text: '#ffffff' } : getWarnaProgress(persen, 1);
     h += '<td style="background-color: ' + wTotalHarian.bg + '; color: ' + wTotalHarian.text + ';">' + val + '</td>';
     rowTotalStyled.push(buatSelExcel(val, "n", wTotalHarian.bg, wTotalHarian.text, "center", true, "#,##0"));
     globalSisaSimulasi -= val;
@@ -5408,6 +5408,7 @@ document.addEventListener('click', function(e) {
 
 </body>
 </html>
+
 
 
 
